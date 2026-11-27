@@ -1,4 +1,4 @@
-﻿@model List<RestaurantSystem.Models.ViewModels.CartItemVM>
+@model List<RestaurantSystem.Models.ViewModels.CartItemVM>
 
 @{
     ViewData["Title"] = "My Ordering Cart";
@@ -66,10 +66,24 @@
                                     <tr>
                                         <td class="ps-4">
                                             <span class="fw-semibold">@item.ProductName</span>
+                                            @if (item.Addons.Any())
+                                            {
+                                                <div class="small text-muted">+ @item.AddonSummary</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                            {
+                                                <div class="small fst-italic text-muted">
+                                                    <i class="fa-solid fa-note-sticky me-1"></i>@item.SpecialInstructions
+                                                </div>
+                                            }
                                         </td>
 
                                         <td class="text-center ffg-muted">
-                                            RM @item.Price.ToString("F2")
+                                            RM @item.UnitPrice.ToString("F2")
+                                            @if (item.AddonTotal > 0)
+                                            {
+                                                <div class="small text-muted">(incl. RM @item.AddonTotal.ToString("F2") extras)</div>
+                                            }
                                         </td>
 
                                         <td class="text-center">

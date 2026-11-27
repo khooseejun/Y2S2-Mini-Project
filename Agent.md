@@ -23,9 +23,30 @@ Two audiences share one app:
 
 **Core user journeys**
 
-- Browse menu (AJAX search/filter/sort/paginate) → product detail → favorites → cart → checkout
-  (Takeaway or Dine-in + table) → payment (Cash / E-Wallet mock) → confirmation → PDF receipt.
-- Admin: dashboard, category & product CRUD, order management (status + PDF export), user management
+- Browse menu (AJAX search/filter/sort/paginate) → product detail (choose add-ons + special
+  instructions) → favorites → cart → checkout (Dine-in / Takeaway / Delivery) → payment (Cash / E-Wallet
+  mock) → confirmation → live order tracking → PDF receipt.
+- Reserve a table (date, time, guests, optional table) with automatic double-booking prevention.
+- Admin: dashboard, kitchen queue, order management with a 7-state lifecycle, category & product CRUD,
+  user management, table management, reservation management, payments, and reports + PDF export.
+
+### Workflow.md coverage
+
+`Workflow.md` (in this folder) is the requirements/design document the project is being built towards.
+Current state — **Phase 1 complete, Phase 2 core complete**:
+
+| Workflow.md section | Status |
+| --- | --- |
+| §2.1 Main page, §2.2 Registration/login, §2.3 Ordering, §2.4 Checkout & payment, §2.6 Order tracking | **Implemented** (3 order types, add-ons, instructions, 7 statuses) |
+| §2.5 Table reservation | **Implemented** (conflict prevention per §8.4) |
+| §3.1 Login/roles, §3.2 Dashboard, §3.3 Order management (+ kitchen queue) | **Implemented** |
+| §3.4 Menu management, §3.5 Table management, §3.6 Reservations | **Implemented** |
+| §3.9 Payment management (transactions, receipts) | **Implemented** — refunds are recorded, not initiated |
+| §3.10 Reports | **Implemented** (daily/monthly/top-selling + PDF) |
+| §3.7 Staff management (multi-role), §3.8 Inventory | **Not implemented** (Phase 3) |
+| §5 promotions, notifications, activity log | **Not implemented** (Phase 3) — `Order.DiscountAmount` and `Orders.CancellationReason` exist as hooks |
+
+Roles remain `ADMIN` / `MEMBER`; the richer staff roles (Manager, Cashier, Kitchen, Waiter) are Phase 3.
   (create/edit/block/delete + PDF export), and sales reports (Daily / Monthly / Top-Selling, each with
   PDF export).
 
@@ -36,7 +57,7 @@ Two audiences share one app:
 1. **This directory is not a git repository.** There is no `git diff`, no `git checkout`, and no undo.
    Treat every delete or overwrite as permanent. Prefer additive edits; when you must rewrite a file,
    read it first and preserve its contents exactly.
-2. **Do not run destructive EF Core tooling carelessly.** See [Section 9](#9-database-migrations-&-the-known-schema-drift).
+2. **Do not run destructive EF Core tooling carelessly.** See [Section 9](#9-database-&-migrations).
    `dotnet ef migrations remove` will happily delete migration files and revert the model snapshot.
 3. **Preserve the assignment-demonstrated patterns.** Several design choices exist specifically to satisfy
    marking criteria (see [Section 6](#6-architecture-rules-that-must-be-preserved)). Do not "modernise"
@@ -88,15 +109,19 @@ RestaurantSystem-Final/
     ├── DB.mdf / DB_log.ldf            # LocalDB database (binary; ~8 MB each; ships with the project)
     ├── Properties/launchSettings.json # http :5007, https :7089
     ├── Controllers/
-    │   ├── HomeController.cs          # 584 lines — catalog, cart, favorites, tables
-    │   ├── AccountController.cs       # 470 lines — auth, profile, password reset
-    │   ├── OrderController.cs         # 677 lines — checkout, payment, history, PDF receipt
-    │   └── AdminController.cs         # 1355 lines — all admin features + reports
+    │   ├── HomeController.cs          # catalog, cart, add-ons, favorites, tables
+    │   ├── AccountController.cs       # auth, profile, password reset
+    │   ├── OrderController.cs         # checkout, payment, history, tracking, PDF receipt
+    │   ├── ReservationController.cs   # customer reservations + conflict prevention
+    │   └── AdminController.cs         # all admin features, kitchen queue, reports
     ├── Models/
-    │   ├── DB.cs                      # DbContext + 6 entities
+    │   ├── DB.cs                      # DbContext + entities
+    │   ├── Statuses.cs                # OrderStatus / OrderType / TableState / ReservationStatus constants
+    │   ├── Pricing.cs                 # PricingSettings + Pricing.Calculate (single source of totals)
     │   ├── ViewModels.cs              # All view models (nested in `ViewModels` class)
     │   └── ErrorViewModel.cs
-    ├── Migrations/                    # 3 migrations + snapshot (see Section 9)
+    ├── App_Data/backup-20261127/      # DB backup taken before the Phase 2 migration
+    ├── Migrations/                    # 5 migrations + snapshot (see Section 9)
     ├── Views/
     │   ├── _ViewImports.cshtml        # Global usings incl. `@using static ...ViewModels`
     │   ├── _ViewStart.cshtml
@@ -105,8 +130,9 @@ RestaurantSystem-Final/
     │   ├── Account/  Login, Register, Profile, EditProfile, ResetPassword,
     │   │             PasswordRecovery, PasswordRecoveryReset, AccessDenied, Orders
     │   ├── Order/    Checkout, Payment, EWalletCheckout, Confirmation, Details, History
-    │   └── Admin/    Dashboard, Categories, Products, Orders, UserManage,
-    │                 Daily, Monthly, TopSelling, Report,
+    │   ├── Reservation/  Index, Create
+    │   └── Admin/    Dashboard, Orders, Kitchen, Reservations, Tables, Payments,
+    │                 Categories, Products, UserManage, Daily, Monthly, TopSelling, Report,
     │                 + Create/Edit/Delete variants, UserCreate, UserEdit,
     │                 + _AdminLayout.cshtml, _Sidebar.cshtml
     └── wwwroot/
@@ -184,37 +210,56 @@ These are deliberate, assignment-driven decisions. Comments in the source explai
 
 ---
 
-## 7. Domain model (`Models/DB.cs`)
+## 7. Domain model (`Models/DB.cs`, `Models/Statuses.cs`, `Models/Pricing.cs`)
 
-`RestaurantDbContext` → 6 `DbSet`s: `Users`, `Tables`, `Categories`, `Products`, `Orders`,
-`OrderDetails`, `Favorites`.
+`RestaurantDbContext` → 10 `DbSet`s: `Users`, `Tables`, `Categories`, `Products`, `ProductAddons`,
+`Orders`, `OrderDetails`, `OrderItemAddons`, `Payments`, `Reservations`, `Favorites`.
 
 | Entity | Key fields / notes |
 | --- | --- |
-| `User` | `Username`, `Email` (both unique by controller check, **not** by DB constraint), `Password` (hash), `FullName`, `PhoneNumber`, `Role` (`ADMIN`/`MEMBER`), `PasswordResetToken` + `PasswordResetTokenExpiry` (30 min), `ProfilePhotoUrl`, `IsBlocked`, `Address` |
-| `Table` | `TableName`, `IsOccupied` (bool — dine-in occupancy) |
-| `Category` | `CategoryName`; `Products` navigation |
-| `Product` | `ProductName`, `Description`, `Price` `decimal(18,2)` `[Range(0.01, 999.99)]`, `ImageUrl` (**nullable** on purpose — form posts `IFormFile`, so a non-nullable string would trip implicit-required and block product creation), `CategoryId`, `StockQuantity` (default 50) |
-| `Order` | `UserId`, `TableId` (**nullable = takeaway**), `OrderDate`, `TotalAmount`, `OrderStatus`, `DiningOption` (`"Takeaway"`/`"DineIn"`), `PaymentMethod` (`"Cash"`/`"EWallet"`), `DeliveryAddress` (per-order snapshot) |
-| `OrderDetail` | `OrderId`, `ProductId`, `Quantity` `[Range(1,100)]`, `PriceAtOrder` (price snapshot at purchase) |
+| `User` | `Username`, `Email` (unique by controller check, **not** by DB constraint), `Password` (hash), `FullName`, `PhoneNumber`, `Role` (`ADMIN`/`MEMBER`), reset token + 30-min expiry, `ProfilePhotoUrl`, `IsBlocked`, `Address` |
+| `Table` | `TableName`, `Capacity`, `Location`, `Status`, plus the legacy `IsOccupied`. **Always change status via `SetStatus(...)`** — it keeps `IsOccupied` in sync for the old views |
+| `Category` / `Product` | `Product.ImageUrl` is **nullable on purpose** (form posts `IFormFile`; a non-nullable string trips implicit-required). `Product.IsActive` deactivates a dish without losing history. `Product.StockQuantity` |
+| `ProductAddon` | `ProductId`, `Name`, `Price`, `IsActive` — customisation options offered per dish |
+| `Order` | `UserId`, `TableId?`, `OrderDate`, `OrderStatus`, `DiningOption` (`DineIn`/`Takeaway`/`Delivery`), `PaymentMethod`, `DeliveryAddress`, **price breakdown** (`SubtotalAmount`, `ServiceCharge`, `TaxAmount`, `DeliveryFee`, `DiscountAmount`; `TotalAmount` = grand total), `StatusUpdatedDate`, `CancellationReason` |
+| `OrderDetail` | `OrderId`, `ProductId`, `Quantity`, `PriceAtOrder` (snapshot), `SpecialInstructions`, `Addons` |
+| `OrderItemAddon` | `OrderDetailId`, `Name`, `PriceAtOrder` — add-on **snapshot** so later edits never rewrite history |
+| `Payment` | `OrderId`, `Method`, `Amount`, `Status` (`PAID`/`UNPAID`/`REFUNDED`), `Reference`, dates |
+| `Reservation` | `UserId?`, `CustomerName`, `Phone`, `Email?`, `ReservationDate`, `ReservationTime`, `Guests`, `TableId?`, `Status`, `SpecialRequests`; `StartsAt`/`EndsAt` (`DurationMinutes` = 120) |
 | `Favorite` | `UserId`, `ProductId`, `AddedDate` — no unique constraint |
 
-**Important invariants**
+### Status constants (`Models/Statuses.cs`)
 
-- `OrderStatus` ∈ `{ "PENDING", "COMPLETED", "CANCELLED" }`. Validated against a `string[]` in
-  `AdminController.UpdateOrderStatus` / `UpdateOrderStatusBatch`. A `"COOKING"` state was considered and
-  deliberately omitted — do not add states without updating those arrays, the History filter tabs, and
-  the admin status buttons together.
-- **Stock is decremented only when an order is actually created** (`OrderController.CreateOrder`), never
-  while in a cart. `Cancel` restores stock and frees the table. `OrderController.Add`/`AddAjax` cap
-  quantity at available stock; `CheckStockAvailability` re-checks immediately before payment.
-- **Table occupancy** is set `true` in `CreateOrder` for dine-in, and cleared by order `Cancel`,
-  `CheckOutTable` (customer), or `HomeController.AdminFreeTable` (admin).
-- **Saved address vs. order address:** `User.Address` is the reusable saved address; `Order.DeliveryAddress`
-  is a per-order snapshot so editing the profile later does not rewrite order history. Keep both.
+All status strings live in one file. **Do not write status literals in controllers or views** — use
+`OrderStatus.Pending`, `TableState.Occupied`, `ReservationStatus.Confirmed`, etc.
 
----
+- **Order lifecycle** — `PENDING → CONFIRMED → PREPARING → READY → COMPLETED`, with `CANCELLED` reachable
+  from `PENDING`/`CONFIRMED`/`PREPARING`. `OrderStatus.CanTransition(from, to)` is the single authority;
+  `NextStatuses(from)` drives which buttons a page renders.
+- **Table states** — `Available`, `Reserved`, `Occupied`, `Cleaning`, `Unavailable`.
+- **Reservation states** — `PENDING`, `CONFIRMED`, `CANCELLED`, `REJECTED`, `COMPLETED`.
 
+### Pricing (`Models/Pricing.cs`)
+
+`Pricing.Calculate(subtotal, orderType, settings)` returns the full `OrderTotals`. Rules come from
+`appsettings.json → RestaurantSettings` (`TaxPercent`, `ServiceChargePercent`, `DeliveryFee`):
+
+- service charge applies to **dine-in only**, tax is charged on `subtotal + service`,
+- delivery fee applies to **delivery only**,
+- the cart, checkout, payment, confirmation, receipt PDF and the checkout page's live estimate all use the
+  same helper, so totals can never disagree.
+
+### Important invariants
+
+- **Validate totals server-side.** `OrderController.CreateOrder` recalculates from database prices and
+  ignores anything the browser posted (Workflow.md §8.10).
+- **Stock is decremented only when an order is created**, never while in a cart. Cancelling restores it —
+  `ApplyStatusChange` guards against double-restoring by checking the previous status.
+- **Table occupancy** follows the order: dine-in sets `Occupied`; completing sets `Cleaning`; cancelling,
+  checking out or `AdminFreeTable` sets `Available`.
+- **Saved address vs. order address:** `User.Address` is reusable; `Order.DeliveryAddress` is a per-order
+  snapshot so editing the profile later does not rewrite order history. Keep both.
+- **Reservation conflicts** (Workflow.md §8.4): one table cannot hold two overlapping active bookings.
 ## 8. Code style conventions
 
 Observed consistently across the codebase — follow them so new code looks native.
@@ -261,84 +306,64 @@ Observed consistently across the codebase — follow them so new code looks nati
 
 ---
 
-## 9. Database, migrations & the known schema drift
+## 9. Database & migrations
 
-### Current state
+### Current state — the baseline is now clean
 
 Connection: `Server=(localdb)\mssqllocaldb;AttachDbFilename=|DataDirectory|\DB.mdf;Database=RestaurantSystemDB;
 Trusted_Connection=True;MultipleActiveResultSets=true`
 
-Migrations present:
+`dotnet ef migrations has-pending-model-changes` reports **"No changes"** — the model, the migrations and
+the shipped `DB.mdf` all agree.
 
 | Migration | What it did |
 | --- | --- |
 | `20260708123322_CreateDB` | Initial schema (Users, Tables, Categories, Products, Orders, OrderDetails) |
-| `20260715140421_UpdateDB` | Reworked Users (Username/PhoneNumber), Tables (TableName/IsOccupied), Order FKs, **dropped all FK indexes and most FKs**, added `Notes` |
-| `20260830033453_UpdateDBv1` | Added password-reset token, `ProfilePhotoUrl`, `StockQuantity`, `DiningOption`, `PaymentMethod`, and the `Favorites` table |
+| `20260715140421_UpdateDB` | Reworked Users/Tables/Orders, **dropped most FKs and all FK indexes**, added `Notes` |
+| `20260830033453_UpdateDBv1` | Password-reset token, `ProfilePhotoUrl`, `StockQuantity`, `DiningOption`, `PaymentMethod`, `Favorites` |
+| `20261127081948_SyncModelWithDb` | Reconciles the model with the DB that shipped (see below) |
+| `20261127082133_Phase2Core` | Reservations, Payments, add-ons, order lifecycle + price breakdown, table status |
 
-### ⚠️ The model is ahead of the last migration
+### History of the drift (now resolved — keep it that way)
 
-`dotnet ef migrations has-pending-model-changes` reports **"Changes have been made to the model since the
-last migration."** This is pre-existing and the app still runs because `DB.mdf` was updated out-of-band
-(Visual Studio / manually), not via migrations.
+The shipped `DB.mdf` had been edited **out-of-band** in Visual Studio, so it contained columns
+(`Users.Address`, `Users.IsBlocked`, `Orders.DeliveryAddress`) that no migration ever created, and
+`__EFMigrationsHistory` listed only `CreateDB`. `SyncModelWithDb` fixes that: every statement in it is
+guarded with `IF COL_LENGTH(...) IS NULL` / `IF NOT EXISTS`, so it is safe on **both** the shipped database
+(where the objects already existed) and a brand-new one. Its `Down()` is a deliberate no-op.
 
-The exact pending diff (verified):
+> **Lesson for future migrations:** EF runs one migration as a **single SQL batch**, and SQL Server
+> compiles a batch *before* executing it. If a migration adds a column and then `UPDATE`s it, the `UPDATE`
+> fails to compile ("Invalid column name"). The existing migrations work around this with `EXEC(...)`
+> (dynamic SQL defers name resolution). Do the same, and always verify with
+> `dotnet ef migrations script 0 --idempotent` replayed against a scratch database.
 
-```
-OrderDetails : DROP COLUMN  "Notes"
-Users        : ADD  "Address"          nvarchar(250) NULL
-Users        : ADD  "IsBlocked"        bit NOT NULL DEFAULT 0
-Products     : ALTER "ImageUrl"        nvarchar(250) -> NULL
-Products     : ALTER "Description"     nvarchar(500) -> NULL
-Orders       : ADD  "DeliveryAddress"  nvarchar(250) NULL
-Products     : CREATE INDEX IX_Products_CategoryId
-Products     : ADD FK -> Categories (ON DELETE RESTRICT)
-```
-
-**Consequences you must know:**
-
-- `User.Address`, `User.IsBlocked`, and `Order.DeliveryAddress` are used by controllers and views but
-  **have no migration**. A fresh `dotnet ef database update` on an empty database will produce a schema
-  that is missing them, and those features will throw at runtime.
-- `OrderDetail.Notes` exists in the **snapshot and migrations** but **not** in the C# entity — the model
-  wants to drop it.
-- The snapshot `RestaurantDbContextModelSnapshot.cs` was generated against that out-of-date model.
-
-> **Current state of the shipped `DB.mdf` (verified):** the database file that travels with the project
-> **already matches the C# model** — it contains `Users.Address`, `Users.IsBlocked`,
-> `Orders.DeliveryAddress`, nullable `Products.Description`/`ImageUrl`, and no `OrderDetails.Notes`.
-> So the app works correctly as shipped; it is only the *migrations* that lag behind the model. This is
-> why `has-pending-model-changes` still reports drift even though nothing is actually broken.
-
-### If your task requires schema changes
-
-Safest sequence:
+### Applying schema changes
 
 ```powershell
 cd RestaurantSystem\RestaurantSystem
-dotnet build                                              # must be green first
-dotnet ef migrations add <DescriptiveName>                # generates .cs + .Designer.cs
-dotnet ef migrations script <PreviousMigration>           # review SQL BEFORE touching the DB
+dotnet build                                        # must be green first
+dotnet ef migrations add <DescriptiveName>          # generates .cs + .Designer.cs
+dotnet ef migrations script 0 --idempotent          # review the SQL BEFORE touching the DB
+dotnet ef database update
 ```
 
-Then review the generated `Up()` by hand. Note that the generated migration will also contain the
-pending "drift" changes above — that is acceptable and arguably desirable, but confirm with the user
-before you fold them in, since folding in `DROP COLUMN Notes` is destructive.
+Also verify a **fresh** database builds correctly (this is what catches drift):
+
+```powershell
+sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "CREATE DATABASE Scratch"
+# replay the generated script into Scratch, check for Msg errors, then drop Scratch
+```
 
 ### 🚫 Never do this
 
-**Do not run `dotnet ef migrations remove`** in this repo. It deletes migration files and rewrites the
-snapshot with no undo (no git). If you need to experiment, scaffold into a throwaway `--output-dir` and
-copy only what you keep.
-
-Also avoid `dotnet ef database drop` / `database update` against `DB.mdf` without explicit user
-confirmation — `DB.mdf` is the only copy of the seeded data and has no source-of-truth script.
-
-> Note on file encoding: the migration files are **UTF-8 with BOM and CRLF** line endings. Preserve this
-> if you edit them, or diffs/tooling comparisons become noisy.
-
----
-
+- **Do not run `Remove-Migration` / `dotnet ef migrations remove`.** It deletes migration files and
+  rewrites the snapshot, and there is no git to undo it.
+- **Do not run `DROP DATABASE`** on this database: for an `AttachDbFilename` database it deletes `DB.mdf`
+  and `DB_log.ldf` from disk. To detach without losing files use
+  `ALTER DATABASE [RestaurantSystemDB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; EXEC sp_detach_db 'RestaurantSystemDB';`
+- Back up `DB.mdf` + `DB_log.ldf` (together, app stopped) before any schema work. There is a copy from
+  before the Phase 2 work in `RestaurantSystem/App_Data/backup-20261127/`.
 ## 10. Security observations
 
 Recorded so agents neither re-introduce nor "silently fix" these mismatched to the assignment's intent.
@@ -518,6 +543,18 @@ Both files are required — the `.ldf` is the transaction log, and an `.mdf` wit
 - If you add a `required` string to an entity that is posted from a form, consider whether model binding
   will trip implicit-required — `Product.ImageUrl` is nullable precisely because of this trap.
 
+**Add an order status**
+- Update `Models/Statuses.cs` (`OrderStatus.All`, `Flow`, `_allowed`, `Label`, `BadgeClass`, `Description`).
+- Admin buttons and the customer timeline are all generated from those helpers, so they update automatically.
+- Migrate existing rows if the value replaces an old one.
+
+**Change pricing (tax / service / delivery)**
+- Edit `RestaurantSettings` in `appsettings.json` — no code change needed. `Pricing.Calculate` is the only
+  place totals are computed; verify the checkout page's live estimate still matches the server total.
+
+**Work on reservations**
+- All conflict logic is the single `FindConflict` helper in `ReservationController`; keep one implementation
+  and reuse it in admin actions rather than writing a second overlap check.
 **Touch styling**
 - Prefer editing the relevant CSS file and **using `--ffg-*` variables**.
 - Add a `html.dark-mode` patch in `dark-mode.css` for anything new that has a colour.
@@ -538,12 +575,20 @@ Both files are required — the `.ldf` is the transaction log, and an `.mdf` wit
 | Launch URLs | https://localhost:7089 · http://localhost:5007 |
 | Login path | `/Account/Login` · Access denied: `/Account/AccessDenied` |
 | Admin entry | `/Admin/Dashboard` |
-| Session cart key | `"OrderingCart"` (×3 literals) |
+| Admin pages | `Orders`, `Kitchen`, `Reservations`, `Tables`, `Payments`, `Categories`, `Products`, `UserManage` |
+| Admin reports | `/Admin/Report`, `/Admin/Report/Daily`, `/Admin/Report/Monthly`, `/Admin/Report/TopSelling` (+ `/Export`) |
+| Customer reservation | `/Reservation/Index`, `/Reservation/Create` |
+| Session cart key | `"OrderingCart"` (×3 literals: `HomeController`, `OrderController`, `_Layout.cshtml`) |
 | Pending checkout keys | `Pending_DiningOption`, `Pending_TableId`, `Pending_PaymentMethod`, `Pending_Address` |
-| Order statuses | `PENDING`, `COMPLETED`, `CANCELLED` |
-| Dining options | `Takeaway`, `DineIn` |
+| Order statuses | `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `COMPLETED`, `CANCELLED` |
+| Order types | `DineIn`, `Takeaway`, `Delivery` |
+| Table states | `Available`, `Reserved`, `Occupied`, `Cleaning`, `Unavailable` |
+| Reservation states | `PENDING`, `CONFIRMED`, `CANCELLED`, `REJECTED`, `COMPLETED` |
+| Payment statuses | `PAID`, `UNPAID`, `REFUNDED` |
 | Payment methods | `Cash`, `EWallet` |
+| Pricing config | `appsettings.json → RestaurantSettings` (tax 6%, service 10% dine-in, delivery RM 5) |
 | Roles | `ADMIN`, `MEMBER` |
 | Theme storage key | `ffg-theme` (legacy: `bite-theme`), class `html.dark-mode` |
 | Currency | RM, `N2` format |
 | EF tool | `dotnet-ef` 10.0.11 installed globally |
+| DB backup | `RestaurantSystem/App_Data/backup-20261127/` (pre-Phase-2 snapshot) |

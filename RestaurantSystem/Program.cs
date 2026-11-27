@@ -51,6 +51,10 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<Helper>();
 builder.Services.AddHttpContextAccessor();
 
+// 5b. Order pricing rules (tax %, service charge %, delivery fee) — see Models/Pricing.cs.
+//     Bound from "RestaurantSettings" so the numbers live in appsettings.json, not code.
+builder.Services.AddSingleton(PricingSettings.FromConfiguration(builder.Configuration));
+
 // 6. Email service — used by Password Recovery (Email) to send real reset links via SMTP
 builder.Services.AddScoped<IEmailService, EmailService>();
 

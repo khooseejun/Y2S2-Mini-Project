@@ -1,0 +1,132 @@
+@model List<RestaurantSystem.Models.ViewModels.OrderVM>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Kitchen Orders";
+    ViewBag.ActiveMenu = "Kitchen";
+
+    // Kitchen works left-to-right through the preparation stages.
+    var columns = new (string Status, string Title, string Icon, string Colour)[]
+    {
+        (RestaurantSystem.Models.OrderStatus.Confirmed, "To Prepare", "fa-clipboard-check", "secondary"),
+        (RestaurantSystem.Models.OrderStatus.Preparing,   "Preparing",   "fa-fire",             "primary"),
+        (RestaurantSystem.Models.OrderStatus.Ready,       "Ready",       "fa-bell-concierge",   "success"),
+    };
+
+    string NextLabel(string status) => status switch
+    {
+        RestaurantSystem.Models.OrderStatus.Confirmed => "Start Preparing",
+        RestaurantSystem.Models.OrderStatus.Preparing => "Mark Ready",
+        RestaurantSystem.Models.OrderStatus.Ready => "Complete",
+        _ => "Advance"
+    };
+
+    string NextStatus(string status) => status switch
+    {
+        RestaurantSystem.Models.OrderStatus.Confirmed => RestaurantSystem.Models.OrderStatus.Preparing,
+        RestaurantSystem.Models.OrderStatus.Preparing => RestaurantSystem.Models.OrderStatus.Ready,
+        RestaurantSystem.Models.OrderStatus.Ready => RestaurantSystem.Models.OrderStatus.Completed,
+        _ => ""
+    };
+}
+
+<div class="admin-page-header">
+    <div>
+        <h2><i class="fa-solid fa-kitchen-set me-2"></i>Kitchen Orders</h2>
+        <span class="text-muted small">Live preparation queue — oldest orders first</span>
+    </div>
+    <div>
+        <a asp-action="Orders" class="btn btn-outline-admin rounded-pill">
+            <i class="fa-solid fa-receipt me-1"></i> All Orders
+        </a>
+        <a asp-action="Kitchen" class="btn btn-admin rounded-pill px-3">
+            <i class="fa-solid fa-rotate me-1"></i> Refresh
+        </a>
+    </div>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
+        <i class="fa-solid fa-mug-hot fa-2x text-muted mb-3"></i>
+        <h5 class="fw-bold">Kitchen is clear</h5>
+        <p class="text-muted mb-0">There are no confirmed orders waiting to be prepared.</p>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var col in columns)
+        {
+            var items = Model.Where(o => o.OrderStatus == col.Status).ToList();
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100">
+                    <div class="card-header bg-white rounded-top-4 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-@col.Colour">
+                            <i class="fa-solid @col.Icon me-2"></i>@col.Title
+                        </span>
+                        <span class="badge bg-@col.Colour rounded-pill">@items.Count</span>
+                    </div>
+                    <div class="card-body p-3">
+                        @if (!items.Any())
+                        {
+                            <div class="text-muted small text-center py-4">Nothing here</div>
+                        }
+                        @foreach (var order in items)
+                        {
+                            <div class="card border rounded-3 mb-3 kitchen-ticket">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <div class="fw-bold">#@order.OrderId</div>
+                                            <div class="small text-muted">@order.OrderDate.ToString("HH:mm") · @order.CustomerName</div>
+                                        </div>
+                                        <span class="badge @order.StatusBadgeClass rounded-pill">@order.StatusLabel</span>
+                                    </div>
+
+                                    <div class="small mb-2">
+                                        <span class="badge bg-light text-dark border">
+                                            @order.OrderTypeLabel@(order.TableName != null ? $" · {order.TableName}" : "")
+                                        </span>
+                                    </div>
+
+                                    <ul class="list-unstyled mb-2 small">
+                                        @foreach (var d in order.Details)
+                                        {
+                                            <li class="mb-1">
+                                                <span class="fw-bold">@d.Quantity ×</span> @d.ProductName
+                                                @if (d.Addons.Any())
+                                                {
+                                                    <div class="text-muted">+ @string.Join(", ", d.Addons)</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(d.SpecialInstructions))
+                                                {
+                                                    <div class="text-danger fst-italic">
+                                                        <i class="fa-solid fa-note-sticky me-1"></i>@d.SpecialInstructions
+                                                    </div>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+
+                                    <div class="d-flex gap-2">
+                                        <form asp-action="UpdateOrderStatus" method="post" class="flex-grow-1">
+                                            <input type="hidden" name="id" value="@order.OrderId" />
+                                            <input type="hidden" name="status" value="@NextStatus(order.OrderStatus)" />
+                                            <button type="submit" class="btn btn-@col.Colour btn-sm w-100 rounded-pill fw-bold">
+                                                @NextLabel(order.OrderStatus) <i class="fa-solid fa-arrow-right ms-1"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .kitchen-ticket { border-left: 4px solid #c9a227 !important; }
+</style>

@@ -81,7 +81,8 @@ namespace RestaurantSystem.Controllers
             const int pageSize = 9;
             if (page < 1) page = 1;
 
-            var query = _db.Products.AsQueryable();
+            // Deactivated dishes (Admin → Menu Management) stay out of the customer catalogue.
+            var query = _db.Products.Where(p => p.IsActive).AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -168,8 +169,14 @@ namespace RestaurantSystem.Controllers
             ViewBag.IsFavorited = userId.HasValue
                 && _db.Favorites.Any(f => f.UserId == userId.Value && f.ProductId == id);
 
+            // Customisation options offered for this dish (Workflow.md §2.3)
+            ViewBag.Addons = _db.ProductAddons
+                .Where(a => a.ProductId == id && a.IsActive)
+                .OrderBy(a => a.AddonId)
+                .ToList();
+
             ViewBag.RelatedProducts = _db.Products
-                .Where(p => p.CategoryId == product.CategoryId && p.ProductId != product.ProductId)
+                .Where(p => p.CategoryId == product.CategoryId && p.ProductId != product.ProductId && p.IsActive)
                 .Take(3)
                 .ToList();
 
@@ -193,7 +200,7 @@ namespace RestaurantSystem.Controllers
             var table = _db.Tables.FirstOrDefault(t => t.TableId == tableId);
             if (table != null)
             {
-                table.IsOccupied = false;
+                table.SetStatus(TableState.Available);
                 _db.SaveChanges();
                 TempData["Info"] = $"{table.TableName} has been marked as available.";
             }
@@ -216,7 +223,7 @@ namespace RestaurantSystem.Controllers
         // [POST] Add a dish to the cart (traditional synchronous form)
         [HttpPost]
         [Authorize]
-        public IActionResult Add(int productId, int quantity = 1)
+        public IActionResult Add(int productId, int quantity = 1, int[]? addonIds = null, string? instructions = null)
         {
             var product = _db.Products.FirstOrDefault(p => p.ProductId == productId);
             if (product == null)
@@ -231,8 +238,13 @@ namespace RestaurantSystem.Controllers
             }
 
             var cart = GetCartFromSession();
-            var cartItem = cart.FirstOrDefault(item => item.ProductId == productId);
-            int alreadyInCart = cartItem?.Quantity ?? 0;
+            var addons = BuildAddons(productId, addonIds);
+            var note = NormaliseInstructions(instructions);
+
+            // Lines with different add-ons / instructions are separate cart entries, so the
+            // customer can order the same dish twice with different customisations.
+            var cartItem = FindMatchingLine(cart, productId, addons, note);
+            int alreadyInCart = cart.Sum(i => i.Quantity);
 
             if (alreadyInCart + quantity > product.StockQuantity)
             {
@@ -256,7 +268,9 @@ namespace RestaurantSystem.Controllers
                     ProductId = product.ProductId,
                     ProductName = product.ProductName,
                     Price = product.Price,
-                    Quantity = quantity
+                    Quantity = quantity,
+                    Addons = addons,
+                    SpecialInstructions = note
                 });
             }
 
@@ -268,7 +282,7 @@ namespace RestaurantSystem.Controllers
         // [POST] Add a dish to the cart via AJAX (used by Menu / Product Detail pages)
         [HttpPost]
         [Authorize]
-        public IActionResult AddAjax(int productId, int quantity = 1)
+        public IActionResult AddAjax(int productId, int quantity = 1, int[]? addonIds = null, string? instructions = null)
         {
             var product = _db.Products.FirstOrDefault(p => p.ProductId == productId);
             if (product == null)
@@ -282,8 +296,11 @@ namespace RestaurantSystem.Controllers
             }
 
             var cart = GetCartFromSession();
-            var cartItem = cart.FirstOrDefault(item => item.ProductId == productId);
-            int alreadyInCart = cartItem?.Quantity ?? 0;
+            var addons = BuildAddons(productId, addonIds);
+            var note = NormaliseInstructions(instructions);
+
+            var cartItem = FindMatchingLine(cart, productId, addons, note);
+            int alreadyInCart = cart.Sum(i => i.Quantity);
 
             bool cappedToStock = false;
             if (alreadyInCart + quantity > product.StockQuantity)
@@ -308,7 +325,9 @@ namespace RestaurantSystem.Controllers
                     ProductId = product.ProductId,
                     ProductName = product.ProductName,
                     Price = product.Price,
-                    Quantity = quantity
+                    Quantity = quantity,
+                    Addons = addons,
+                    SpecialInstructions = note
                 });
             }
 
@@ -585,6 +604,61 @@ namespace RestaurantSystem.Controllers
         {
             var sessionData = JsonSerializer.Serialize(cart);
             HttpContext.Session.SetString(CART_KEY, sessionData);
+        }
+
+        // ==========================================
+        // Customisation helpers (Workflow.md §2.3)
+        // ==========================================
+
+        /// <summary>
+        /// Resolves the posted add-on ids into a validated snapshot. Prices come from the
+        /// database, never from the client, and add-ons that don't belong to this dish (or are
+        /// inactive) are silently ignored.
+        /// </summary>
+        private List<CartAddonVM> BuildAddons(int productId, int[]? addonIds)
+        {
+            if (addonIds == null || addonIds.Length == 0) return new List<CartAddonVM>();
+
+            return _db.ProductAddons
+                .Where(a => addonIds.Contains(a.AddonId) && a.ProductId == productId && a.IsActive)
+                .OrderBy(a => a.AddonId)
+                .Select(a => new CartAddonVM
+                {
+                    AddonId = a.AddonId,
+                    Name = a.Name,
+                    Price = a.Price
+                })
+                .ToList();
+        }
+
+        private static string? NormaliseInstructions(string? instructions)
+        {
+            if (string.IsNullOrWhiteSpace(instructions)) return null;
+            instructions = instructions.Trim();
+            return instructions.Length > 200 ? instructions[..200] : instructions;
+        }
+
+        /// <summary>
+        /// Two cart lines are "the same" only when the dish, its add-ons and its instructions all
+        /// match — otherwise ordering the same dish with different extras would merge them.
+        /// </summary>
+        private static CartItemVM? FindMatchingLine(
+            List<CartItemVM> cart, int productId, List<CartAddonVM> addons, string? instructions)
+        {
+            foreach (var line in cart.Where(l => l.ProductId == productId))
+            {
+                bool sameAddons =
+                    line.Addons.Count == addons.Count &&
+                    line.Addons.Select(a => a.AddonId).OrderBy(i => i)
+                        .SequenceEqual(addons.Select(a => a.AddonId).OrderBy(i => i));
+
+                if (sameAddons &&
+                    string.Equals(line.SpecialInstructions ?? "", instructions ?? "", StringComparison.Ordinal))
+                {
+                    return line;
+                }
+            }
+            return null;
         }
     }
 }

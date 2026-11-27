@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -67,13 +67,30 @@ namespace RestaurantSystem.Migrations
                 name: "TokenExpiration",
                 table: "Users");
 
-            migrationBuilder.DropColumn(
-                name: "Status",
-                table: "Tables");
+            // NOTE (portability fix): this migration drops [Tables].[Status] and later adds other
+            // columns to the same table. EF emits the whole migration as ONE SQL batch, and SQL
+            // Server compiles a batch before running it — so any statement naming a column that
+            // does not exist yet aborts the batch ("Invalid column name 'Status'"). Running the
+            // drop as its own batch (via raw SQL + GO is not possible inside a migration) is
+            // emulated by doing the drop through dynamic SQL, which defers name resolution.
+            migrationBuilder.Sql(@"
+DECLARE @df sysname;
+SELECT @df = dc.name
+FROM sys.default_constraints dc
+JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
+WHERE dc.parent_object_id = OBJECT_ID('Tables') AND c.name = 'Status';
+IF @df IS NOT NULL EXEC('ALTER TABLE [Tables] DROP CONSTRAINT [' + @df + ']');
+IF COL_LENGTH('Tables','Status') IS NOT NULL EXEC('ALTER TABLE [Tables] DROP COLUMN [Status]');");
 
-            migrationBuilder.DropColumn(
-                name: "TableNumber",
-                table: "Tables");
+            // Same batch-compilation issue as [Tables].[Status] above.
+            migrationBuilder.Sql(@"
+DECLARE @df2 sysname;
+SELECT @df2 = dc.name
+FROM sys.default_constraints dc
+JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
+WHERE dc.parent_object_id = OBJECT_ID('Tables') AND c.name = 'TableNumber';
+IF @df2 IS NOT NULL EXEC('ALTER TABLE [Tables] DROP CONSTRAINT [' + @df2 + ']');
+IF COL_LENGTH('Tables','TableNumber') IS NOT NULL EXEC('ALTER TABLE [Tables] DROP COLUMN [TableNumber]');");
 
             migrationBuilder.DropColumn(
                 name: "SpecialInstructions",

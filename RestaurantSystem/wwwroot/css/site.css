@@ -1029,3 +1029,63 @@ a:hover {
         bottom: 16px;
     }
 }
+
+/* ==========================================================================
+   Order tracking timeline (Order/Details) — Workflow.md §2.6
+   ========================================================================== */
+.order-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.order-timeline li {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    padding: 0 0 18px 0;
+}
+
+.order-timeline li:last-child {
+    padding-bottom: 0;
+}
+
+.order-timeline .dot {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
+    border-radius: 50%;
+    border: 2px solid var(--ffg-line);
+    background: var(--ffg-surface);
+    z-index: 1;
+}
+
+.order-timeline li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 24px;
+    bottom: 0;
+    width: 2px;
+    background: var(--ffg-line);
+}
+
+.order-timeline li.done .dot {
+    background: var(--ffg-emerald-700);
+    border-color: var(--ffg-emerald-700);
+}
+
+.order-timeline li.current .dot {
+    background: var(--ffg-gold-500);
+    border-color: var(--ffg-gold-500);
+    box-shadow: 0 0 0 4px var(--ffg-gold-100);
+}
+
+.order-timeline li.current .fw-bold {
+    color: var(--ffg-emerald-800);
+}
+
+html.dark-mode .order-timeline li.current .fw-bold {
+    color: var(--ffg-gold-400);
+}

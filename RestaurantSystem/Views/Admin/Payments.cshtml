@@ -1,0 +1,116 @@
+@model List<RestaurantSystem.Models.ViewModels.PaymentRowVM>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Payment Management";
+    ViewBag.ActiveMenu = "Payments";
+
+    string selectedStatus = ViewBag.SelectedStatus as string ?? "ALL";
+    decimal totalPaid = ViewBag.TotalPaid;
+    decimal totalUnpaid = ViewBag.TotalUnpaid;
+    decimal totalRefunded = ViewBag.TotalRefunded;
+}
+
+<div class="admin-page-header">
+    <div>
+        <h2>Payment Management</h2>
+        <span class="text-muted small">Transactions, settlement status and receipts</span>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Collected</div>
+            <div class="fs-3 fw-bold text-success">RM @totalPaid.ToString("N2")</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Outstanding</div>
+            <div class="fs-3 fw-bold text-warning">RM @totalUnpaid.ToString("N2")</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Refunded</div>
+            <div class="fs-3 fw-bold text-secondary">RM @totalRefunded.ToString("N2")</div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="btn-group shadow-sm" role="group">
+        @foreach (var st in new[] { "ALL", "PAID", "UNPAID", "REFUNDED" })
+        {
+            <a asp-action="Payments" asp-route-status="@st"
+               class="btn @(selectedStatus == st ? "btn-admin text-white" : "btn-outline-admin") rounded-pill px-3">
+                @(st == "ALL" ? "All" : st)
+            </a>
+        }
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden admin-table-card">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Method</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Reference</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Any())
+            {
+                int i = 1;
+                foreach (var p in Model)
+                {
+                    string badge = p.Status switch
+                    {
+                        "PAID" => "bg-success",
+                        "UNPAID" => "bg-warning text-dark",
+                        "REFUNDED" => "bg-secondary",
+                        _ => "bg-light text-dark"
+                    };
+                    <tr>
+                        <td class="text-muted">@i</td>
+                        <td class="fw-semibold">#@p.OrderId</td>
+                        <td>@p.CustomerName</td>
+                        <td>@(p.Method ?? "—")</td>
+                        <td class="fw-bold">RM @p.Amount.ToString("N2")</td>
+                        <td><span class="badge @badge rounded-pill">@p.Status</span></td>
+                        <td class="small text-muted">@(p.Reference ?? "—")</td>
+                        <td class="text-end">
+                            @if (p.Status == "UNPAID")
+                            {
+                                <form asp-action="MarkPaymentPaid" method="post" class="d-inline">
+                                    <input type="hidden" name="id" value="@p.PaymentId" />
+                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-2 py-1 fw-bold">Mark Paid</button>
+                                </form>
+                            }
+                            <a asp-controller="Order" asp-action="DownloadReceipt" asp-route-id="@p.OrderId"
+                               class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 fw-bold" title="Receipt PDF">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    i++;
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-5">
+                        <i class="fa-solid fa-money-bill-wave fs-2 d-block mb-2"></i>
+                        No payments found.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

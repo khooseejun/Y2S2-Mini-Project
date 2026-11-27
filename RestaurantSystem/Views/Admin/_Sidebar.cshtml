@@ -1,4 +1,4 @@
-﻿@{
+@{
     string activeMenu = ViewBag.ActiveMenu as string ?? "";
 }
 
@@ -19,6 +19,22 @@
         <a class="admin-nav-link @(activeMenu == "Orders" ? "active" : "")"
            asp-controller="Admin" asp-action="Orders">
             <i class="fa-solid fa-receipt"></i> Orders
+        </a>
+        <a class="admin-nav-link @(activeMenu == "Kitchen" ? "active" : "")"
+           asp-controller="Admin" asp-action="Kitchen">
+            <i class="fa-solid fa-kitchen-set"></i> Kitchen
+        </a>
+        <a class="admin-nav-link @(activeMenu == "Reservations" ? "active" : "")"
+           asp-controller="Admin" asp-action="Reservations">
+            <i class="fa-solid fa-calendar-check"></i> Reservations
+        </a>
+        <a class="admin-nav-link @(activeMenu == "Tables" ? "active" : "")"
+           asp-controller="Admin" asp-action="Tables">
+            <i class="fa-solid fa-chair"></i> Tables
+        </a>
+        <a class="admin-nav-link @(activeMenu == "Payments" ? "active" : "")"
+           asp-controller="Admin" asp-action="Payments">
+            <i class="fa-solid fa-money-bill-wave"></i> Payments
         </a>
         <a class="admin-nav-link @(activeMenu == "Categories" ? "active" : "")"
            asp-controller="Admin" asp-action="Categories">

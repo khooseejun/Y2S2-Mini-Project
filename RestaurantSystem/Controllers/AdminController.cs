@@ -291,35 +291,7 @@ namespace RestaurantSystem.Controllers
             }
 
             var orders = query.OrderByDescending(o => o.OrderDate).ToList();
-
-            // Manually load related data (no navigation properties on Order/OrderDetail by design)
-            var userIds = orders.Select(o => o.UserId).Distinct().ToList();
-            var tableIds = orders.Where(o => o.TableId.HasValue).Select(o => o.TableId!.Value).Distinct().ToList();
-            var orderIds = orders.Select(o => o.OrderId).Distinct().ToList();
-
-            var users = db.Users.Where(u => userIds.Contains(u.UserId)).ToDictionary(u => u.UserId);
-            var tables = db.Tables.Where(t => tableIds.Contains(t.TableId)).ToDictionary(t => t.TableId);
-            var allDetails = db.OrderDetails.Where(d => orderIds.Contains(d.OrderId)).ToList();
-            var productIds = allDetails.Select(d => d.ProductId).Distinct().ToList();
-            var products = db.Products.Where(p => productIds.Contains(p.ProductId)).ToDictionary(p => p.ProductId);
-
-            var orderVMs = orders.Select(o => new OrderVM
-            {
-                OrderId = o.OrderId,
-                CustomerName = users.TryGetValue(o.UserId, out var user) ? user.Username : "Unknown",
-                TableName = o.TableId.HasValue && tables.TryGetValue(o.TableId.Value, out var tbl) ? tbl.TableName : null,
-                OrderDate = o.OrderDate,
-                TotalAmount = o.TotalAmount,
-                OrderStatus = o.OrderStatus,
-                Details = allDetails
-                    .Where(d => d.OrderId == o.OrderId)
-                    .Select(d => new OrderDetailVM
-                    {
-                        ProductName = products.TryGetValue(d.ProductId, out var prod) ? prod.ProductName : "Unknown",
-                        Quantity = d.Quantity,
-                        PriceAtOrder = d.PriceAtOrder
-                    }).ToList()
-            }).ToList();
+            var orderVMs = BuildOrderRows(orders, includeDetails: true);
 
             // Keyword search: order number / customer name / table name
             if (!string.IsNullOrWhiteSpace(search))
@@ -338,11 +310,66 @@ namespace RestaurantSystem.Controllers
             return View(orderVMs);
         }
 
+        /// <summary>
+        /// Projects orders into OrderVM rows, loading users / tables / details / add-ons in bulk.
+        /// Order and OrderDetail intentionally have no navigation properties (see Agent.md), so
+        /// the joins are done in memory with dictionaries.
+        /// </summary>
+        private List<OrderVM> BuildOrderRows(List<Order> orders, bool includeDetails)
+        {
+            var userIds = orders.Select(o => o.UserId).Distinct().ToList();
+            var tableIds = orders.Where(o => o.TableId.HasValue).Select(o => o.TableId!.Value).Distinct().ToList();
+            var orderIds = orders.Select(o => o.OrderId).Distinct().ToList();
+
+            var users = db.Users.Where(u => userIds.Contains(u.UserId)).ToDictionary(u => u.UserId);
+            var tables = db.Tables.Where(t => tableIds.Contains(t.TableId)).ToDictionary(t => t.TableId);
+
+            var allDetails = includeDetails
+                ? db.OrderDetails.Where(d => orderIds.Contains(d.OrderId)).ToList()
+                : new List<OrderDetail>();
+
+            var productIds = allDetails.Select(d => d.ProductId).Distinct().ToList();
+            var products = db.Products.Where(p => productIds.Contains(p.ProductId)).ToDictionary(p => p.ProductId);
+
+            var detailIds = allDetails.Select(d => d.OrderDetailId).ToList();
+            var addonLookup = db.OrderItemAddons
+                .Where(a => detailIds.Contains(a.OrderDetailId))
+                .ToList()
+                .GroupBy(a => a.OrderDetailId)
+                .ToDictionary(g => g.Key, g => g.Select(a => a.Name).ToList());
+
+            return orders.Select(o => new OrderVM
+            {
+                OrderId = o.OrderId,
+                CustomerName = users.TryGetValue(o.UserId, out var user) ? user.Username : "Unknown",
+                TableName = o.TableId.HasValue && tables.TryGetValue(o.TableId.Value, out var tbl) ? tbl.TableName : null,
+                OrderDate = o.OrderDate,
+                TotalAmount = o.TotalAmount,
+                OrderStatus = o.OrderStatus,
+                DiningOption = o.DiningOption,
+                PaymentMethod = o.PaymentMethod,
+                DeliveryAddress = o.DeliveryAddress,
+                CancellationReason = o.CancellationReason,
+                StatusUpdatedDate = o.StatusUpdatedDate,
+                Details = allDetails
+                    .Where(d => d.OrderId == o.OrderId)
+                    .Select(d => new OrderDetailVM
+                    {
+                        ProductName = products.TryGetValue(d.ProductId, out var prod) ? prod.ProductName : "Unknown",
+                        Quantity = d.Quantity,
+                        PriceAtOrder = d.PriceAtOrder,
+                        SpecialInstructions = d.SpecialInstructions,
+                        Addons = addonLookup.TryGetValue(d.OrderDetailId, out var names) ? names : new List<string>()
+                    }).ToList()
+            }).ToList();
+        }
+
         // ==========================================
-        // [POST: Admin/UpdateOrderStatus] Update a single order's status
+        // [POST: Admin/UpdateOrderStatus] Move one order through the lifecycle.
+        // Workflow.md §3.3: accept -> preparing -> ready -> completed, or reject with a reason.
         // ==========================================
         [HttpPost]
-        public IActionResult UpdateOrderStatus(int id, string status)
+        public IActionResult UpdateOrderStatus(int id, string status, string? reason = null)
         {
             var order = db.Orders.Find(id);
             if (order == null)
@@ -350,20 +377,84 @@ namespace RestaurantSystem.Controllers
                 return NotFound();
             }
 
-            // Only 3 states are in active use (see OrderController) — "COOKING" was
-            // considered and deliberately left out for now.
-            string[] validStatuses = { "PENDING", "COMPLETED", "CANCELLED" };
-            if (!validStatuses.Contains(status))
+            if (!OrderStatus.IsValid(status))
             {
                 TempData["Error"] = "Invalid order status.";
                 return RedirectToAction("Orders");
             }
 
-            order.OrderStatus = status;
+            // Only legal transitions are accepted — e.g. a completed order cannot go back to pending.
+            if (!OrderStatus.CanTransition(order.OrderStatus, status))
+            {
+                TempData["Error"] =
+                    $"Order #{order.OrderId} is {OrderStatus.Label(order.OrderStatus)} and cannot be changed to " +
+                    $"{OrderStatus.Label(status)}.";
+                return RedirectToAction("Orders");
+            }
+
+            ApplyStatusChange(order, status, reason);
             db.SaveChanges();
 
-            TempData["Info"] = $"Order #{order.OrderId} status updated to {status}.";
+            TempData["Info"] = $"Order #{order.OrderId} is now {OrderStatus.Label(status)}.";
             return RedirectToAction("Orders");
+        }
+
+        /// <summary>
+        /// Applies a status change plus everything that must follow from it: timestamp, table
+        /// release/occupancy, stock restoration on cancellation, payment settlement and reason.
+        /// Shared by the single and batch update actions and the kitchen queue.
+        /// </summary>
+        private void ApplyStatusChange(Order order, string status, string? reason = null)
+        {
+            var previous = order.OrderStatus;
+
+            order.OrderStatus = status;
+            order.StatusUpdatedDate = DateTime.Now;
+
+            if (status == OrderStatus.Cancelled)
+            {
+                order.CancellationReason = string.IsNullOrWhiteSpace(reason) ? "Cancelled by staff" : reason.Trim();
+
+                // Free the table this order held
+                if (order.TableId.HasValue)
+                {
+                    var table = db.Tables.FirstOrDefault(t => t.TableId == order.TableId.Value);
+                    table?.SetStatus(TableState.Available);
+                }
+
+                // Restore stock once, only if the order was still live (never double-restore)
+                bool wasLive = previous != OrderStatus.Cancelled && previous != OrderStatus.Completed;
+                if (wasLive)
+                {
+                    foreach (var detail in db.OrderDetails.Where(d => d.OrderId == order.OrderId).ToList())
+                    {
+                        var product = db.Products.FirstOrDefault(p => p.ProductId == detail.ProductId);
+                        if (product != null) product.StockQuantity += detail.Quantity;
+                    }
+                }
+
+                var cancelledPayment = db.Payments.FirstOrDefault(p => p.OrderId == order.OrderId);
+                if (cancelledPayment != null && cancelledPayment.Status == PaymentStatus.Paid)
+                {
+                    cancelledPayment.Status = PaymentStatus.Refunded;
+                }
+            }
+            else if (status == OrderStatus.Completed)
+            {
+                // A completed order releases its table and settles any cash payment.
+                if (order.TableId.HasValue)
+                {
+                    var table = db.Tables.FirstOrDefault(t => t.TableId == order.TableId.Value);
+                    table?.SetStatus(TableState.Cleaning);
+                }
+
+                var payment = db.Payments.FirstOrDefault(p => p.OrderId == order.OrderId);
+                if (payment != null && payment.Status == PaymentStatus.Unpaid)
+                {
+                    payment.Status = PaymentStatus.Paid;
+                    payment.PaidDate = DateTime.Now;
+                }
+            }
         }
 
         // ==========================================
@@ -372,8 +463,7 @@ namespace RestaurantSystem.Controllers
         [HttpPost]
         public IActionResult UpdateOrderStatusBatch(int[] ids, string status)
         {
-            string[] validStatuses = { "PENDING", "COMPLETED", "CANCELLED" };
-            if (!validStatuses.Contains(status))
+            if (!OrderStatus.IsValid(status))
             {
                 TempData["Error"] = "Invalid order status.";
                 return RedirectToAction("Orders");
@@ -386,14 +476,389 @@ namespace RestaurantSystem.Controllers
             }
 
             var orders = db.Orders.Where(o => ids.Contains(o.OrderId)).ToList();
+            int changed = 0, skipped = 0;
             foreach (var order in orders)
             {
-                order.OrderStatus = status;
+                // Batch updates respect the same transition rules as single updates.
+                if (!OrderStatus.CanTransition(order.OrderStatus, status))
+                {
+                    skipped++;
+                    continue;
+                }
+                ApplyStatusChange(order, status);
+                changed++;
             }
             db.SaveChanges();
 
-            TempData["Info"] = $"{orders.Count} order(s) updated to {status}.";
+            TempData["Info"] = $"{changed} order(s) updated to {OrderStatus.Label(status)}." +
+                               (skipped > 0 ? $" {skipped} skipped (invalid transition)." : "");
             return RedirectToAction("Orders");
+        }
+
+        // ==========================================
+        // [GET: Admin/Kitchen] Kitchen preparation queue (Workflow.md §3.3 / §6 "Kitchen Orders")
+        // Shows confirmed / preparing / ready orders, oldest first.
+        // ==========================================
+        [HttpGet]
+        public IActionResult Kitchen()
+        {
+            ViewBag.ActiveMenu = "Kitchen";
+
+            var activeStatuses = OrderStatus.Active.ToArray();
+            var orders = db.Orders
+                .Where(o => activeStatuses.Contains(o.OrderStatus))
+                .OrderBy(o => o.OrderDate)
+                .ToList();
+
+            return View(BuildOrderRows(orders, includeDetails: true));
+        }
+
+        // ==========================================
+        // [Reservations] Admin reservation management (Workflow.md §3.6)
+        // ==========================================
+        [HttpGet]
+        public IActionResult Reservations(string? status, DateTime? date)
+        {
+            ViewBag.ActiveMenu = "Reservations";
+
+            IQueryable<Reservation> query = db.Reservations;
+
+            if (!string.IsNullOrEmpty(status) && status != "ALL")
+            {
+                query = query.Where(r => r.Status == status);
+            }
+
+            if (date.HasValue)
+            {
+                query = query.Where(r => r.ReservationDate == date.Value.Date);
+            }
+
+            var reservations = query
+                .OrderBy(r => r.ReservationDate)
+                .ThenBy(r => r.ReservationTime)
+                .ToList();
+
+            var tableIds = reservations.Where(r => r.TableId.HasValue).Select(r => r.TableId!.Value).Distinct().ToList();
+            var tables = db.Tables.Where(t => tableIds.Contains(t.TableId)).ToDictionary(t => t.TableId);
+
+            var rows = reservations.Select(r => new ReservationRowVM
+            {
+                ReservationId = r.ReservationId,
+                CustomerName = r.CustomerName,
+                Phone = r.Phone,
+                Email = r.Email,
+                ReservationDate = r.ReservationDate,
+                ReservationTime = r.ReservationTime,
+                Guests = r.Guests,
+                TableId = r.TableId,
+                TableName = r.TableId.HasValue && tables.TryGetValue(r.TableId.Value, out var t) ? t.TableName : null,
+                Status = r.Status,
+                SpecialRequests = r.SpecialRequests,
+                CreatedDate = r.CreatedDate
+            }).ToList();
+
+            ViewBag.SelectedStatus = string.IsNullOrEmpty(status) ? "ALL" : status;
+            ViewBag.SelectedDate = date?.ToString("yyyy-MM-dd");
+
+            return View(rows);
+        }
+
+        // [POST] Approve / reject / cancel / complete a reservation
+        [HttpPost]
+        public IActionResult UpdateReservationStatus(int id, string status, int? tableId = null)
+        {
+            var reservation = db.Reservations.Find(id);
+            if (reservation == null) return NotFound();
+
+            if (!RestaurantSystem.Models.ReservationStatus.IsValid(status))
+            {
+                TempData["Error"] = "Invalid reservation status.";
+                return RedirectToAction("Reservations");
+            }
+
+            // Re-check the table clash before confirming (Workflow.md §8.4)
+            if (status == RestaurantSystem.Models.ReservationStatus.Confirmed)
+            {
+                int? targetTableId = tableId ?? reservation.TableId;
+                if (targetTableId.HasValue)
+                {
+                    var conflict = db.Reservations
+                        .Where(r => r.TableId == targetTableId.Value
+                                    && r.ReservationDate == reservation.ReservationDate
+                                    && r.ReservationId != reservation.ReservationId)
+                        .ToList()
+                        .FirstOrDefault(r => r.IsActive &&
+                                             reservation.StartsAt < r.EndsAt &&
+                                             r.StartsAt < reservation.EndsAt);
+
+                    if (conflict != null)
+                    {
+                        TempData["Error"] =
+                            $"Cannot confirm — that table is already booked at {conflict.StartsAt:HH:mm} for {conflict.CustomerName}.";
+                        return RedirectToAction("Reservations");
+                    }
+                }
+            }
+
+            reservation.Status = status;
+            if (tableId.HasValue) reservation.TableId = tableId;
+
+            // Keep the physical table state in step with the booking
+            if (reservation.TableId.HasValue)
+            {
+                var table = db.Tables.FirstOrDefault(t => t.TableId == reservation.TableId.Value);
+                if (table != null && table.Status == TableState.Available && reservation.IsActive)
+                {
+                    table.SetStatus(TableState.Reserved);
+                }
+                else if (table != null && table.Status == TableState.Reserved && !reservation.IsActive)
+                {
+                    table.SetStatus(TableState.Available);
+                }
+            }
+
+            db.SaveChanges();
+
+            TempData["Info"] = $"Reservation #{reservation.ReservationId} is now {RestaurantSystem.Models.ReservationStatus.Label(status)}.";
+            return RedirectToAction("Reservations");
+        }
+
+        // [POST] Assign a table to a reservation
+        [HttpPost]
+        public IActionResult AssignReservationTable(int id, int tableId)
+        {
+            var reservation = db.Reservations.Find(id);
+            if (reservation == null) return NotFound();
+
+            var table = db.Tables.FirstOrDefault(t => t.TableId == tableId);
+            if (table == null)
+            {
+                TempData["Error"] = "That table does not exist.";
+                return RedirectToAction("Reservations");
+            }
+
+            if (reservation.Guests > table.Capacity)
+            {
+                TempData["Error"] = $"{table.TableName} seats only {table.Capacity}. Please pick a larger table.";
+                return RedirectToAction("Reservations");
+            }
+
+            var conflict = db.Reservations
+                .Where(r => r.TableId == tableId
+                            && r.ReservationDate == reservation.ReservationDate
+                            && r.ReservationId != reservation.ReservationId)
+                .ToList()
+                .FirstOrDefault(r => r.IsActive && reservation.StartsAt < r.EndsAt && r.StartsAt < reservation.EndsAt);
+
+            if (conflict != null)
+            {
+                TempData["Error"] = $"{table.TableName} is already booked at {conflict.StartsAt:HH:mm}.";
+                return RedirectToAction("Reservations");
+            }
+
+            reservation.TableId = tableId;
+            db.SaveChanges();
+
+            TempData["Info"] = $"{table.TableName} assigned to reservation #{reservation.ReservationId}.";
+            return RedirectToAction("Reservations");
+        }
+
+        // ==========================================
+        // [Tables] Table management (Workflow.md §3.5)
+        // ==========================================
+        [HttpGet]
+        public IActionResult Tables()
+        {
+            ViewBag.ActiveMenu = "Tables";
+
+            var rows = db.Tables
+                .OrderBy(t => t.TableId)
+                .Select(t => new TableRowVM
+                {
+                    TableId = t.TableId,
+                    TableName = t.TableName,
+                    Capacity = t.Capacity,
+                    Location = t.Location,
+                    Status = t.Status,
+                    IsOccupied = t.IsOccupied
+                })
+                .ToList();
+
+            return View(rows);
+        }
+
+        // [POST] Change a table's status
+        [HttpPost]
+        public IActionResult UpdateTableStatus(int id, string status)
+        {
+            var table = db.Tables.Find(id);
+            if (table == null) return NotFound();
+
+            if (!TableState.IsValid(status))
+            {
+                TempData["Error"] = "Invalid table status.";
+                return RedirectToAction("Tables");
+            }
+
+            table.SetStatus(status);
+            db.SaveChanges();
+
+            TempData["Info"] = $"{table.TableName} is now {status}.";
+            return RedirectToAction("Tables");
+        }
+
+        // [POST] Create a new table
+        [HttpPost]
+        public IActionResult CreateTable(string tableName, int capacity, string? location)
+        {
+            if (string.IsNullOrWhiteSpace(tableName))
+            {
+                TempData["Error"] = "Please enter a table name.";
+                return RedirectToAction("Tables");
+            }
+
+            if (capacity < 1)
+            {
+                TempData["Error"] = "Capacity must be at least 1.";
+                return RedirectToAction("Tables");
+            }
+
+            db.Tables.Add(new Table
+            {
+                TableName = tableName.Trim(),
+                Capacity = capacity,
+                Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim(),
+                Status = TableState.Available
+            });
+            db.SaveChanges();
+
+            TempData["Info"] = $"Table '{tableName.Trim()}' created.";
+            return RedirectToAction("Tables");
+        }
+
+        // [POST] Edit an existing table's details
+        [HttpPost]
+        public IActionResult EditTable(int id, string tableName, int capacity, string? location)
+        {
+            var table = db.Tables.Find(id);
+            if (table == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(tableName) || capacity < 1)
+            {
+                TempData["Error"] = "Please provide a table name and a capacity of at least 1.";
+                return RedirectToAction("Tables");
+            }
+
+            table.TableName = tableName.Trim();
+            table.Capacity = capacity;
+            table.Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+            db.SaveChanges();
+
+            TempData["Info"] = $"Table '{table.TableName}' updated.";
+            return RedirectToAction("Tables");
+        }
+
+        // [POST] Delete a table that has no open reservations
+        [HttpPost]
+        public IActionResult DeleteTable(int id)
+        {
+            var table = db.Tables.Find(id);
+            if (table == null) return NotFound();
+
+            if (table.IsOccupied)
+            {
+                TempData["Error"] = $"{table.TableName} is currently occupied and cannot be deleted.";
+                return RedirectToAction("Tables");
+            }
+
+            var hasActiveReservations = db.Reservations.Any(r =>
+                r.TableId == id &&
+                (r.Status == RestaurantSystem.Models.ReservationStatus.Pending
+                 || r.Status == RestaurantSystem.Models.ReservationStatus.Confirmed));
+
+            if (hasActiveReservations)
+            {
+                TempData["Error"] = $"{table.TableName} still has active reservations. Cancel them first.";
+                return RedirectToAction("Tables");
+            }
+
+            if (db.Orders.Any(o => o.TableId == id))
+            {
+                TempData["Error"] = $"{table.TableName} appears in past orders and cannot be deleted. Mark it Unavailable instead.";
+                return RedirectToAction("Tables");
+            }
+
+            db.Tables.Remove(table);
+            db.SaveChanges();
+
+            TempData["Info"] = $"Table '{table.TableName}' deleted.";
+            return RedirectToAction("Tables");
+        }
+
+        // ==========================================
+        // [Payments] Payment management (Workflow.md §3.9, read-only view + receipts)
+        // ==========================================
+        [HttpGet]
+        public IActionResult Payments(string? status)
+        {
+            ViewBag.ActiveMenu = "Payments";
+
+            IQueryable<RestaurantSystem.Models.Payment> query = db.Payments;
+
+            if (!string.IsNullOrEmpty(status) && status != "ALL")
+            {
+                query = query.Where(p => p.Status == status);
+            }
+
+            var payments = query.OrderByDescending(p => p.CreatedDate).ToList();
+
+            var userIds = db.Orders
+                .Where(o => payments.Select(p => p.OrderId).Contains(o.OrderId))
+                .ToDictionary(o => o.OrderId, o => o.UserId);
+
+            var users = db.Users.ToDictionary(u => u.UserId, u => u.Username);
+
+            var rows = payments.Select(p => new PaymentRowVM
+            {
+                PaymentId = p.PaymentId,
+                OrderId = p.OrderId,
+                Method = p.Method,
+                Amount = p.Amount,
+                Status = p.Status,
+                Reference = p.Reference,
+                CreatedDate = p.CreatedDate,
+                PaidDate = p.PaidDate,
+                CustomerName = userIds.TryGetValue(p.OrderId, out var uid) && users.TryGetValue(uid, out var un)
+                    ? un : "Unknown"
+            }).ToList();
+
+            ViewBag.SelectedStatus = string.IsNullOrEmpty(status) ? "ALL" : status;
+            ViewBag.TotalPaid = payments.Where(p => p.Status == RestaurantSystem.Models.PaymentStatus.Paid).Sum(p => p.Amount);
+            ViewBag.TotalUnpaid = payments.Where(p => p.Status == RestaurantSystem.Models.PaymentStatus.Unpaid).Sum(p => p.Amount);
+            ViewBag.TotalRefunded = payments.Where(p => p.Status == RestaurantSystem.Models.PaymentStatus.Refunded).Sum(p => p.Amount);
+
+            return View(rows);
+        }
+
+        // [POST] Mark a cash payment as settled
+        [HttpPost]
+        public IActionResult MarkPaymentPaid(int id)
+        {
+            var payment = db.Payments.Find(id);
+            if (payment == null) return NotFound();
+
+            if (payment.Status != RestaurantSystem.Models.PaymentStatus.Unpaid)
+            {
+                TempData["Error"] = "Only an unpaid payment can be settled.";
+                return RedirectToAction("Payments");
+            }
+
+            payment.Status = RestaurantSystem.Models.PaymentStatus.Paid;
+            payment.PaidDate = DateTime.Now;
+            db.SaveChanges();
+
+            TempData["Info"] = $"Payment #{payment.PaymentId} marked as paid.";
+            return RedirectToAction("Payments");
         }
 
         // ==========================================

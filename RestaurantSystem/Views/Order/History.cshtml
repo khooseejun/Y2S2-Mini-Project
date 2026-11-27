@@ -3,14 +3,6 @@
     ViewData["Title"] = "My Orders";
     string current = ViewBag.CurrentStatus ?? "ALL";
 
-    (string cls, string label) StatusBadge(string status) => status switch
-    {
-        "PENDING" => ("bg-warning text-dark", "Pending"),
-        "COMPLETED" => ("bg-success", "Completed"),
-        "CANCELLED" => ("bg-secondary", "Cancelled"),
-        _ => ("bg-light text-dark", status)
-    };
-
     string TabClass(string status) => current == status ? "nav-link active fw-bold" : "nav-link fw-bold";
 }
 
@@ -25,11 +17,17 @@
         </div>
     }
 
-    <ul class="nav nav-pills mb-4">
+    <ul class="nav nav-pills mb-4 flex-wrap gap-1">
         <li class="nav-item"><a class="@TabClass("ALL")" asp-action="History" asp-route-status="ALL">All</a></li>
-        <li class="nav-item"><a class="@TabClass("PENDING")" asp-action="History" asp-route-status="PENDING">Pending</a></li>
-        <li class="nav-item"><a class="@TabClass("COMPLETED")" asp-action="History" asp-route-status="COMPLETED">Completed</a></li>
-        <li class="nav-item"><a class="@TabClass("CANCELLED")" asp-action="History" asp-route-status="CANCELLED">Cancelled</a></li>
+        @* One tab per lifecycle status (Workflow.md §2.6) *@
+        @foreach (var st in RestaurantSystem.Models.OrderStatus.All)
+        {
+            <li class="nav-item">
+                <a class="@TabClass(st)" asp-action="History" asp-route-status="@st">
+                    @RestaurantSystem.Models.OrderStatus.Label(st)
+                </a>
+            </li>
+        }
     </ul>
 
     @if (Model == null || !Model.Any())
@@ -59,13 +57,12 @@
                     <tbody>
                         @foreach (var order in Model)
                         {
-                            var (badgeCls, badgeLabel) = StatusBadge(order.Status);
                             <tr>
                                 <td class="ps-4 fw-bold">#@order.OrderId</td>
                                 <td>@order.OrderDate.ToString("dd MMM yyyy, HH:mm")</td>
                                 <td>
-                                    @(order.DiningOption == "DineIn" ? $"Dine-in · {order.TableName}" : "Takeaway")
-                                    @if (order.DiningOption == "DineIn" && order.TableStillOccupied)
+                                    @order.OrderTypeLabel@(order.DiningOption == RestaurantSystem.Models.OrderType.DineIn && order.TableName != null ? $" · {order.TableName}" : "")
+                                    @if (order.DiningOption == RestaurantSystem.Models.OrderType.DineIn && order.TableStillOccupied)
                                     {
                                         <form asp-action="CheckOutTable" asp-route-orderId="@order.OrderId" method="post" class="d-inline ms-2"
                                               onsubmit="return confirm('Check out this table? Only do this once you have finished dining.');">
@@ -77,7 +74,7 @@
                                 </td>
                                 <td class="text-center">@order.Items.Sum(i => i.Quantity)</td>
                                 <td class="text-end">RM @order.TotalAmount.ToString("F2")</td>
-                                <td class="text-center"><span class="badge @badgeCls px-3 py-2 rounded-pill">@badgeLabel</span></td>
+                                <td class="text-center"><span class="badge @order.StatusBadgeClass px-3 py-2 rounded-pill">@order.StatusLabel</span></td>
                                 <td class="text-end pe-4">
                                     <a asp-action="Details" asp-route-id="@order.OrderId" class="btn btn-sm btn-outline-secondary">
                                         <i class="fa-solid fa-eye"></i> View

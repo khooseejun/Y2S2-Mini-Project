@@ -1,4 +1,4 @@
-﻿@model RestaurantSystem.Models.Product
+@model RestaurantSystem.Models.Product
 @{
     ViewData["Title"] = Model.ProductName;
     string categoryName = ViewBag.CategoryName as string ?? "Uncategorized";
@@ -55,10 +55,39 @@
             }
             else if (User.Identity?.IsAuthenticated == true)
             {
-                <div class="d-flex gap-3 align-items-center">
-                    <form asp-action="AddAjax" asp-controller="Home" method="post" class="add-to-cart-form flex-grow-1">
-                        <input type="hidden" name="productId" value="@Model.ProductId" />
-                        <input type="hidden" name="quantity" id="qty-input" value="1" />
+                var addons = ViewBag.Addons as List<RestaurantSystem.Models.ProductAddon> ?? new List<RestaurantSystem.Models.ProductAddon>();
+
+                <form asp-action="AddAjax" asp-controller="Home" method="post" class="add-to-cart-form">
+                    <input type="hidden" name="productId" value="@Model.ProductId" />
+                    <input type="hidden" name="quantity" id="qty-input" value="1" />
+
+                    @if (addons.Any())
+                    {
+                        @* Customisation options (Workflow.md §2.3) *@
+                        <div class="ffg-addons mb-3">
+                            <div class="fw-bold small mb-2"><i class="fa-solid fa-plus-circle me-1"></i>Make it yours</div>
+                            @foreach (var addon in addons)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input addon-checkbox" type="checkbox"
+                                           name="addonIds" value="@addon.AddonId" id="addon-@addon.AddonId"
+                                           data-price="@addon.Price" />
+                                    <label class="form-check-label w-100 d-flex justify-content-between" for="addon-@addon.AddonId">
+                                        <span>@addon.Name</span>
+                                        <span class="text-muted">+ RM @addon.Price.ToString("F2")</span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="instructions" class="form-label fw-bold small">Special Instructions</label>
+                        <input type="text" name="instructions" id="instructions" maxlength="200"
+                               class="form-control" placeholder="e.g. no onions, extra spicy" />
+                    </div>
+
+                    <div class="d-flex gap-3 align-items-center">
                         <div class="d-flex align-items-center gap-3 ffg-qty-stepper">
                             <div class="input-group rounded-pill overflow-hidden" style="width: 150px;">
                                 <button type="button" id="qty-minus" class="btn btn-outline-secondary"><i class="fa-solid fa-minus"></i></button>
@@ -69,17 +98,17 @@
                                 <i class="fa-solid fa-cart-plus me-2"></i>Add to Cart
                             </button>
                         </div>
-                    </form>
 
-                    <button type="button"
-                            class="btn rounded-circle flex-shrink-0 d-inline-flex align-items-center justify-content-center add-to-favorite-btn @(isFavorited ? "btn-danger in-favorite" : "btn-outline-secondary")"
-                            data-product-id="@Model.ProductId"
-                            title="Add to Favorites"
-                            style="width: 50px; height: 50px; padding: 0;"
-                            disabled="@(isFavorited ? "disabled" : null)">
-                        <i class="fa-solid fa-heart"></i>
-                    </button>
-                </div>
+                        <button type="button"
+                                class="btn rounded-circle flex-shrink-0 d-inline-flex align-items-center justify-content-center add-to-favorite-btn @(isFavorited ? "btn-danger in-favorite" : "btn-outline-secondary")"
+                                data-product-id="@Model.ProductId"
+                                title="Add to Favorites"
+                                style="width: 50px; height: 50px; padding: 0;"
+                                disabled="@(isFavorited ? "disabled" : null)">
+                            <i class="fa-solid fa-heart"></i>
+                        </button>
+                    </div>
+                </form>
             }
             else
             {

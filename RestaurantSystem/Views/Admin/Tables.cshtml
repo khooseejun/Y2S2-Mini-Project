@@ -1,0 +1,124 @@
+@model List<RestaurantSystem.Models.ViewModels.TableRowVM>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Table Management";
+    ViewBag.ActiveMenu = "Tables";
+
+    int free = Model.Count(t => t.Status == RestaurantSystem.Models.TableState.Available);
+    int occupied = Model.Count(t => t.Status == RestaurantSystem.Models.TableState.Occupied);
+    int reserved = Model.Count(t => t.Status == RestaurantSystem.Models.TableState.Reserved);
+    int other = Model.Count - free - occupied - reserved;
+}
+
+<div class="admin-page-header">
+    <div>
+        <h2>Table Management</h2>
+        <span class="text-muted small">Capacity, location and availability</span>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Available</div>
+            <div class="fs-3 fw-bold text-success">@free</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Occupied</div>
+            <div class="fs-3 fw-bold text-danger">@occupied</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Reserved</div>
+            <div class="fs-3 fw-bold text-info">@reserved</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="small text-muted text-uppercase">Other</div>
+            <div class="fs-3 fw-bold text-secondary">@other</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden admin-table-card">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Table</th>
+                        <th>Seats</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th class="text-end">Change Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in Model)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@t.TableName</td>
+                            <td>@t.Capacity</td>
+                            <td>@(t.Location ?? "—")</td>
+                            <td><span class="badge @t.StatusBadgeClass rounded-pill">@t.Status</span></td>
+                            <td class="text-end">
+                                <form asp-action="UpdateTableStatus" method="post" class="d-inline-flex gap-1">
+                                    <input type="hidden" name="id" value="@t.TableId" />
+                                    <select name="status" class="form-select form-select-sm rounded-pill" style="width:130px;">
+                                        @foreach (var st in RestaurantSystem.Models.TableState.All)
+                                        {
+                                            <option value="@st" selected="@(st == t.Status)">@st</option>
+                                        }
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-admin rounded-pill px-2">Set</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white rounded-top-4">
+                <span class="fw-bold"><i class="fa-solid fa-plus me-1"></i> Add a Table</span>
+            </div>
+            <div class="card-body">
+                <form asp-action="CreateTable" method="post">
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Table Name</label>
+                        <input name="tableName" class="form-control" placeholder="Table 11" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Seats</label>
+                        <input name="capacity" type="number" min="1" max="50" value="4" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Location (optional)</label>
+                        <input name="location" class="form-control" placeholder="Window / Terrace" />
+                    </div>
+                    <button type="submit" class="btn btn-admin rounded-pill w-100 fw-bold">Create Table</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm rounded-4 mt-3">
+            <div class="card-body">
+                <div class="small text-muted">
+                    <div class="fw-bold text-dark mb-1">Status meanings</div>
+                    <div><span class="badge bg-success rounded-pill">Available</span> ready for customers</div>
+                    <div><span class="badge bg-info text-dark rounded-pill">Reserved</span> held for a booking</div>
+                    <div><span class="badge bg-danger rounded-pill">Occupied</span> currently in use</div>
+                    <div><span class="badge bg-warning text-dark rounded-pill">Cleaning</span> awaiting clean</div>
+                    <div><span class="badge bg-secondary rounded-pill">Unavailable</span> cannot be used</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,88 @@
+@model RestaurantSystem.Models.ViewModels.ReservationVM
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Book a Table";
+    bool isEdit = Model.ReservationId > 0;
+}
+
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white py-3 rounded-top-4">
+                    <h4 class="mb-0 fw-bold"><i class="fa-solid fa-calendar-plus me-2"></i>Book a Table</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="@(isEdit ? "Edit" : "Create")" asp-route-id="@(isEdit ? Model.ReservationId : 0)" method="post">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="CustomerName" class="form-label fw-semibold small">Full Name</label>
+                                <input asp-for="CustomerName" class="form-control" />
+                                <span asp-validation-for="CustomerName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Phone" class="form-label fw-semibold small">Phone</label>
+                                <input asp-for="Phone" class="form-control" />
+                                <span asp-validation-for="Phone" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label asp-for="Email" class="form-label fw-semibold small">Email (optional)</label>
+                                <input asp-for="Email" class="form-control" />
+                                <span asp-validation-for="Email" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="ReservationDate" class="form-label fw-semibold small">Date</label>
+                                <input asp-for="ReservationDate" type="date" class="form-control"
+                                       min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                <span asp-validation-for="ReservationDate" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="ReservationTime" class="form-label fw-semibold small">Time</label>
+                                <input asp-for="ReservationTime" type="time" class="form-control" min="11:00" max="21:00" step="900" />
+                                <span asp-validation-for="ReservationTime" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Guests" class="form-label fw-semibold small">Guests</label>
+                                <input asp-for="Guests" type="number" min="1" max="50" class="form-control" />
+                                <span asp-validation-for="Guests" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-12">
+                                <label asp-for="TableId" class="form-label fw-semibold small">Preferred Table (optional)</label>
+                                <select asp-for="TableId" class="form-select"
+                                        asp-items="@(new SelectList(Model.AvailableTables, "TableId", "TableName", Model.TableId))">
+                                    <option value="">-- Any table with enough seats --</option>
+                                </select>
+                                <div class="form-text">We'll assign a suitable table if you don't mind which one.</div>
+                                <span asp-validation-for="TableId" class="text-danger small"></span>
+                            </div>
+
+                            <div class="col-12">
+                                <label asp-for="SpecialRequests" class="form-label fw-semibold small">Special Requests (optional)</label>
+                                <textarea asp-for="SpecialRequests" class="form-control" rows="2"
+                                          placeholder="e.g. birthday, high chair, window seat"></textarea>
+                                <span asp-validation-for="SpecialRequests" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-orange rounded-pill px-4 fw-bold">
+                                <i class="fa-solid fa-check me-1"></i>@(isEdit ? "Save Changes" : "Request Reservation")
+                            </button>
+                            <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-3">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

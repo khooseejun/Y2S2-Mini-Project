@@ -1,7 +1,9 @@
-﻿@model RestaurantSystem.Models.ViewModels.CheckoutVM
+@model RestaurantSystem.Models.ViewModels.CheckoutVM
 @using Microsoft.AspNetCore.Mvc.Rendering
+@inject RestaurantSystem.Models.PricingSettings PricingConfig
 @{
     ViewData["Title"] = "Checkout";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
 }
 
 <div class="container my-5">
@@ -34,16 +36,42 @@
                             @foreach (var item in Model.CartItems)
                             {
                                 <tr>
-                                    <td class="ps-4">@item.ProductName</td>
+                                    <td class="ps-4">
+                                        @item.ProductName
+                                        @if (item.Addons.Any())
+                                        {
+                                            <div class="small text-muted">+ @item.AddonSummary</div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                        {
+                                            <div class="small fst-italic text-muted">Note: @item.SpecialInstructions</div>
+                                        }
+                                    </td>
                                     <td class="text-center">@item.Quantity</td>
                                     <td class="text-end pe-4">RM @item.Total.ToString("F2")</td>
                                 </tr>
                             }
                         </tbody>
                         <tfoot>
+                            <tr>
+                                <td class="ps-4" colspan="2">Subtotal</td>
+                                <td class="text-end pe-4">RM <span id="sum-subtotal">@Model.Totals.Subtotal.ToString("F2")</span></td>
+                            </tr>
+                            <tr id="row-service" class="@(Model.Totals.ServiceCharge > 0 ? "" : "d-none")">
+                                <td class="ps-4" colspan="2">Service Charge</td>
+                                <td class="text-end pe-4">RM <span id="sum-service">@Model.Totals.ServiceCharge.ToString("F2")</span></td>
+                            </tr>
+                            <tr>
+                                <td class="ps-4" colspan="2">Tax</td>
+                                <td class="text-end pe-4">RM <span id="sum-tax">@Model.Totals.Tax.ToString("F2")</span></td>
+                            </tr>
+                            <tr id="row-delivery" class="@(Model.Totals.DeliveryFee > 0 ? "" : "d-none")">
+                                <td class="ps-4" colspan="2">Delivery Fee</td>
+                                <td class="text-end pe-4">RM <span id="sum-delivery">@Model.Totals.DeliveryFee.ToString("F2")</span></td>
+                            </tr>
                             <tr class="table-light">
-                                <td class="ps-4 fw-bold" colspan="2">Grand Total</td>
-                                <td class="text-end pe-4 fw-bold text-success fs-5">RM @Model.GrandTotal.ToString("F2")</td>
+                                <td class="ps-4 fw-bold" colspan="2">Total</td>
+                                <td class="text-end pe-4 fw-bold text-success fs-5">RM <span id="sum-total">@Model.Totals.Total.ToString("F2")</span></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -62,25 +90,32 @@
 
                         <div asp-validation-summary="All" class="text-danger mb-3"></div>
 
-                        <div class="d-flex gap-3 mb-4">
-                            <div class="form-check dining-option flex-fill border rounded-3 p-3">
-                                <input class="form-check-input" type="radio" name="DiningOption" id="optTakeaway" value="Takeaway"
-                                       checked="@(Model.DiningOption != "DineIn")" onclick="toggleTableSelect(false)">
-                                <label class="form-check-label fw-bold w-100" for="optTakeaway">
-                                    <i class="fa-solid fa-bag-shopping me-2 text-orange"></i>Takeaway
-                                </label>
-                            </div>
+                        <div class="d-flex flex-wrap gap-3 mb-4">
                             <div class="form-check dining-option flex-fill border rounded-3 p-3">
                                 <input class="form-check-input" type="radio" name="DiningOption" id="optDineIn" value="DineIn"
-                                       checked="@(Model.DiningOption == "DineIn")" onclick="toggleTableSelect(true)"
+                                       checked="@(Model.DiningOption == "DineIn")" onchange="onTypeChange()"
                                        disabled="@(!Model.AvailableTables.Any())">
                                 <label class="form-check-label fw-bold w-100" for="optDineIn">
                                     <i class="fa-solid fa-utensils me-2 text-orange"></i>Dine-in
                                 </label>
                             </div>
+                            <div class="form-check dining-option flex-fill border rounded-3 p-3">
+                                <input class="form-check-input" type="radio" name="DiningOption" id="optTakeaway" value="Takeaway"
+                                       checked="@(Model.DiningOption != "DineIn" && Model.DiningOption != "Delivery")" onchange="onTypeChange()">
+                                <label class="form-check-label fw-bold w-100" for="optTakeaway">
+                                    <i class="fa-solid fa-bag-shopping me-2 text-orange"></i>Takeaway
+                                </label>
+                            </div>
+                            <div class="form-check dining-option flex-fill border rounded-3 p-3">
+                                <input class="form-check-input" type="radio" name="DiningOption" id="optDelivery" value="Delivery"
+                                       checked="@(Model.DiningOption == "Delivery")" onchange="onTypeChange()">
+                                <label class="form-check-label fw-bold w-100" for="optDelivery">
+                                    <i class="fa-solid fa-motorcycle me-2 text-orange"></i>Delivery
+                                </label>
+                            </div>
                         </div>
 
-                        <div id="tableSelectBox" class="mb-4 @(Model.DiningOption == "DineIn" ? "" : "d-none")">
+                        <div id="tableSelectBox" class="mb-4 d-none">
                             <label class="form-label fw-bold">Select an available table</label>
                             @if (Model.AvailableTables.Any())
                             {
@@ -90,13 +125,13 @@
                             }
                             else
                             {
-                                <div class="text-muted small">No tables are available right now. Please choose Takeaway instead.</div>
+                                <div class="text-muted small">No tables are available right now. Please choose Takeaway or Delivery instead.</div>
                             }
                         </div>
 
-                        <div id="addressBox" class="mb-4 @(Model.DiningOption == "DineIn" ? "d-none" : "")">
-                            <label class="form-label fw-bold">Takeaway Address</label>
-                            <textarea name="Address" class="form-control" rows="2" placeholder="Enter your address">@Model.Address</textarea>
+                        <div id="addressBox" class="mb-4 d-none">
+                            <label class="form-label fw-bold">Delivery Address</label>
+                            <textarea name="Address" class="form-control" rows="2" placeholder="Enter your delivery address">@Model.Address</textarea>
                             <span asp-validation-for="Address" class="text-danger small"></span>
                             <div class="form-text">We'll save this to your profile for next time.</div>
                         </div>
@@ -117,19 +152,46 @@
 <style>
     .dining-option {
         cursor: pointer;
+        min-width: 120px;
     }
 </style>
 
 <script>
-    function toggleTableSelect(isDineIn) {
-        const tableBox = document.getElementById("tableSelectBox");
-        const addressBox = document.getElementById("addressBox");
-        if (isDineIn) {
-            tableBox.classList.remove("d-none");
-            addressBox.classList.add("d-none");
-        } else {
-            tableBox.classList.add("d-none");
-            addressBox.classList.remove("d-none");
-        }
+    // Pricing rules come from the server (appsettings.json → RestaurantSettings), so the
+    // estimate shown while switching order type always matches what the server will charge.
+    const pricing = {
+        subtotal: @Model.Totals.Subtotal.ToString(inv),
+        servicePercent: @PricingConfig.ServiceChargePercent.ToString(inv),
+        taxPercent: @PricingConfig.TaxPercent.ToString(inv),
+        deliveryFee: @PricingConfig.DeliveryFee.ToString(inv)
+    };
+
+    function currentType() {
+        const checked = document.querySelector('input[name="DiningOption"]:checked');
+        return checked ? checked.value : "Takeaway";
     }
+
+    function money(n) { return n.toFixed(2); }
+
+    function onTypeChange() {
+        const type = currentType();
+        document.getElementById("tableSelectBox").classList.toggle("d-none", type !== "DineIn");
+        document.getElementById("addressBox").classList.toggle("d-none", type !== "Delivery");
+
+        const sub = pricing.subtotal;
+        const svc = type === "DineIn" ? sub * pricing.servicePercent / 100 : 0;
+        const tax = (sub + svc) * pricing.taxPercent / 100;
+        const del = type === "Delivery" ? pricing.deliveryFee : 0;
+        const total = sub + svc + tax + del;
+
+        document.getElementById("sum-subtotal").textContent = money(sub);
+        document.getElementById("sum-service").textContent = money(svc);
+        document.getElementById("sum-tax").textContent = money(tax);
+        document.getElementById("sum-delivery").textContent = money(del);
+        document.getElementById("sum-total").textContent = money(total);
+        document.getElementById("row-service").classList.toggle("d-none", svc <= 0);
+        document.getElementById("row-delivery").classList.toggle("d-none", del <= 0);
+    }
+
+    document.addEventListener("DOMContentLoaded", onTypeChange);
 </script>

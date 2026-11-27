@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using QuestPDF.Fluent;
 using RestaurantSystem.Models;
@@ -14,19 +14,21 @@ namespace RestaurantSystem.Controllers
     public class OrderController : Controller
     {
         private readonly RestaurantDbContext db;
+        private readonly PricingSettings pricing;
         private const string CART_KEY = "OrderingCart"; // Must match CartController's constant
         private const string PENDING_OPTION_KEY = "Pending_DiningOption";
         private const string PENDING_TABLE_KEY = "Pending_TableId";
         private const string PENDING_PAYMENT_KEY = "Pending_PaymentMethod";
         private const string PENDING_ADDRESS_KEY = "Pending_Address";
 
-        public OrderController(RestaurantDbContext db)
+        public OrderController(RestaurantDbContext db, PricingSettings pricing)
         {
             this.db = db;
+            this.pricing = pricing;
         }
 
         // ==========================================
-        // [GET/POST: Checkout] — choose Takeaway or Dine-in (+ table)
+        // [GET/POST: Checkout] — choose Dine-in, Takeaway or Delivery
         // ==========================================
         [HttpGet]
         public IActionResult Checkout()
@@ -45,8 +47,9 @@ namespace RestaurantSystem.Controllers
             {
                 DiningOption = "",
                 CartItems = cart,
-                AvailableTables = db.Tables.Where(t => !t.IsOccupied).OrderBy(t => t.TableName).ToList(),
-                Address = currentUser?.Address
+                AvailableTables = AvailableTables(),
+                Address = currentUser?.Address,
+                Totals = Pricing.Calculate(cart.Sum(i => i.Total), null, pricing)
             };
             return View(vm);
         }
@@ -62,13 +65,13 @@ namespace RestaurantSystem.Controllers
                 return RedirectToAction("Cart", "Home");
             }
 
-            if (vm.DiningOption != "DineIn" && vm.DiningOption != "Takeaway")
+            if (!OrderType.IsValid(vm.DiningOption))
             {
-                ModelState.AddModelError("DiningOption", "Please choose Takeaway or Dine-in.");
+                ModelState.AddModelError("DiningOption", "Please choose Dine-in, Takeaway or Delivery.");
             }
 
             Table? selectedTable = null;
-            if (vm.DiningOption == "DineIn")
+            if (vm.DiningOption == OrderType.DineIn)
             {
                 selectedTable = vm.TableId.HasValue ? db.Tables.FirstOrDefault(t => t.TableId == vm.TableId.Value) : null;
 
@@ -76,28 +79,29 @@ namespace RestaurantSystem.Controllers
                 {
                     ModelState.AddModelError("TableId", "Please select a table for dine-in.");
                 }
-                else if (selectedTable.IsOccupied)
+                else if (!TableState.IsFree(selectedTable.Status) || selectedTable.IsOccupied)
                 {
-                    ModelState.AddModelError("TableId", "Sorry, this table has just been occupied. Please pick another one.");
+                    ModelState.AddModelError("TableId", "Sorry, this table is no longer available. Please pick another one.");
                 }
             }
-            else if (vm.DiningOption == "Takeaway")
+            else if (vm.DiningOption == OrderType.Delivery)
             {
                 if (string.IsNullOrWhiteSpace(vm.Address))
                 {
-                    ModelState.AddModelError("Address", "Please enter an address for your takeaway order.");
+                    ModelState.AddModelError("Address", "Please enter a delivery address.");
                 }
             }
 
             if (!ModelState.IsValid)
             {
                 vm.CartItems = cart;
-                vm.AvailableTables = db.Tables.Where(t => !t.IsOccupied).OrderBy(t => t.TableName).ToList();
+                vm.AvailableTables = AvailableTables();
+                vm.Totals = Pricing.Calculate(cart.Sum(i => i.Total), vm.DiningOption, pricing);
                 return View(vm);
             }
 
             HttpContext.Session.SetString(PENDING_OPTION_KEY, vm.DiningOption);
-            if (vm.DiningOption == "DineIn")
+            if (vm.DiningOption == OrderType.DineIn)
             {
                 HttpContext.Session.SetInt32(PENDING_TABLE_KEY, selectedTable!.TableId);
                 HttpContext.Session.Remove(PENDING_ADDRESS_KEY);
@@ -105,18 +109,27 @@ namespace RestaurantSystem.Controllers
             else
             {
                 HttpContext.Session.Remove(PENDING_TABLE_KEY);
-                HttpContext.Session.SetString(PENDING_ADDRESS_KEY, vm.Address ?? "");
 
-                // Remember this address on the user's profile for next time
-                var userId = GetCurrentUserId();
-                if (userId.HasValue)
+                if (vm.DiningOption == OrderType.Delivery)
                 {
-                    var user = db.Users.FirstOrDefault(u => u.UserId == userId.Value);
-                    if (user != null && user.Address != vm.Address)
+                    HttpContext.Session.SetString(PENDING_ADDRESS_KEY, vm.Address ?? "");
+
+                    // Remember this address on the user's profile for next time
+                    var userId = GetCurrentUserId();
+                    if (userId.HasValue)
                     {
-                        user.Address = vm.Address;
-                        db.SaveChanges();
+                        var user = db.Users.FirstOrDefault(u => u.UserId == userId.Value);
+                        if (user != null && user.Address != vm.Address)
+                        {
+                            user.Address = vm.Address;
+                            db.SaveChanges();
+                        }
                     }
+                }
+                else
+                {
+                    // Takeaway has no delivery address.
+                    HttpContext.Session.Remove(PENDING_ADDRESS_KEY);
                 }
             }
 
@@ -134,12 +147,12 @@ namespace RestaurantSystem.Controllers
 
             if (!cart.Any() || string.IsNullOrEmpty(diningOption))
             {
-                TempData["Info"] = "Please choose Takeaway or Dine-in before payment.";
+                TempData["Info"] = "Please choose an order type before payment.";
                 return RedirectToAction("Checkout");
             }
 
             string? tableName = null;
-            if (diningOption == "DineIn")
+            if (diningOption == OrderType.DineIn)
             {
                 var tableId = HttpContext.Session.GetInt32(PENDING_TABLE_KEY);
                 tableName = db.Tables.FirstOrDefault(t => t.TableId == tableId)?.TableName;
@@ -150,7 +163,8 @@ namespace RestaurantSystem.Controllers
                 PaymentMethod = "",
                 CartItems = cart,
                 DiningOption = diningOption,
-                TableName = tableName
+                TableName = tableName,
+                Totals = Pricing.Calculate(cart.Sum(i => i.Total), diningOption, pricing)
             };
 
             return View(vm);
@@ -176,13 +190,13 @@ namespace RestaurantSystem.Controllers
 
             int? tableId = null;
             Table? selectedTable = null;
-            if (diningOption == "DineIn")
+            if (diningOption == OrderType.DineIn)
             {
                 tableId = HttpContext.Session.GetInt32(PENDING_TABLE_KEY);
                 selectedTable = tableId.HasValue ? db.Tables.FirstOrDefault(t => t.TableId == tableId.Value) : null;
 
                 // Re-check right before payment, in case someone else grabbed the table meanwhile
-                if (selectedTable == null || selectedTable.IsOccupied)
+                if (selectedTable == null || !TableState.IsFree(selectedTable.Status) || selectedTable.IsOccupied)
                 {
                     ModelState.AddModelError("", "Sorry, the selected table is no longer available. Please choose another table.");
                 }
@@ -200,6 +214,7 @@ namespace RestaurantSystem.Controllers
                 vm.CartItems = cart;
                 vm.DiningOption = diningOption;
                 vm.TableName = selectedTable?.TableName;
+                vm.Totals = Pricing.Calculate(cart.Sum(i => i.Total), diningOption, pricing);
                 return View("Payment", vm);
             }
 
@@ -234,7 +249,7 @@ namespace RestaurantSystem.Controllers
             }
 
             string? tableName = null;
-            if (diningOption == "DineIn")
+            if (diningOption == OrderType.DineIn)
             {
                 var tableId = HttpContext.Session.GetInt32(PENDING_TABLE_KEY);
                 tableName = db.Tables.FirstOrDefault(t => t.TableId == tableId)?.TableName;
@@ -245,7 +260,8 @@ namespace RestaurantSystem.Controllers
                 CartItems = cart,
                 DiningOption = diningOption,
                 PaymentMethod = paymentMethod ?? "",
-                TableName = tableName
+                TableName = tableName,
+                Totals = Pricing.Calculate(cart.Sum(i => i.Total), diningOption, pricing)
             };
 
             return View(vm);
@@ -266,11 +282,11 @@ namespace RestaurantSystem.Controllers
             }
 
             int? tableId = null;
-            if (diningOption == "DineIn")
+            if (diningOption == OrderType.DineIn)
             {
                 tableId = HttpContext.Session.GetInt32(PENDING_TABLE_KEY);
                 var table = tableId.HasValue ? db.Tables.FirstOrDefault(t => t.TableId == tableId.Value) : null;
-                if (table == null || table.IsOccupied)
+                if (table == null || !TableState.IsFree(table.Status) || table.IsOccupied)
                 {
                     TempData["Info"] = "Sorry, the selected table is no longer available. Please checkout again.";
                     return RedirectToAction("Checkout");
@@ -367,13 +383,16 @@ namespace RestaurantSystem.Controllers
                 return NotFound();
             }
 
-            if (order.OrderStatus != "PENDING")
+            // The customer may only cancel while the restaurant hasn't started preparing.
+            if (order.OrderStatus != OrderStatus.Pending && order.OrderStatus != OrderStatus.Confirmed)
             {
-                TempData["Info"] = "Sorry, this order can no longer be cancelled as it is already being prepared.";
+                TempData["Info"] = "Sorry, this order can no longer be cancelled as the kitchen has already started preparing it.";
                 return RedirectToAction("Details", new { id });
             }
 
-            order.OrderStatus = "CANCELLED";
+            order.OrderStatus = OrderStatus.Cancelled;
+            order.StatusUpdatedDate = DateTime.Now;
+            order.CancellationReason = "Cancelled by customer";
 
             // If this order occupied a table, free it up immediately
             if (order.TableId.HasValue)
@@ -381,7 +400,7 @@ namespace RestaurantSystem.Controllers
                 var table = db.Tables.FirstOrDefault(t => t.TableId == order.TableId.Value);
                 if (table != null)
                 {
-                    table.IsOccupied = false;
+                    table.SetStatus(TableState.Available);
                 }
             }
 
@@ -394,6 +413,13 @@ namespace RestaurantSystem.Controllers
                 {
                     product.StockQuantity += detail.Quantity;
                 }
+            }
+
+            // Reflect the refund on the payment record (Workflow.md §3.9)
+            var payment = db.Payments.FirstOrDefault(p => p.OrderId == id);
+            if (payment != null && payment.Status == PaymentStatus.Paid)
+            {
+                payment.Status = PaymentStatus.Refunded;
             }
 
             db.SaveChanges();
@@ -432,7 +458,7 @@ namespace RestaurantSystem.Controllers
             var table = db.Tables.FirstOrDefault(t => t.TableId == order.TableId.Value);
             if (table != null)
             {
-                table.IsOccupied = false;
+                table.SetStatus(TableState.Available);
                 db.SaveChanges();
                 TempData["Info"] = $"Thanks for dining with us! {table.TableName} has been checked out.";
             }
@@ -471,9 +497,13 @@ namespace RestaurantSystem.Controllers
                     {
                         col.Item().Text($"Order #{summary.OrderId}").Bold().FontSize(13);
                         col.Item().Text($"Date: {summary.OrderDate:dd MMM yyyy, HH:mm}");
-                        col.Item().Text($"Dining Option: {(summary.DiningOption == "DineIn" ? $"Dine-in ({summary.TableName})" : "Takeaway")}");
+                        col.Item().Text($"Order Type: {summary.OrderTypeLabel}{(summary.DiningOption == OrderType.DineIn && summary.TableName != null ? $" ({summary.TableName})" : "")}");
+                        if (!string.IsNullOrEmpty(summary.DeliveryAddress))
+                        {
+                            col.Item().Text($"Deliver To: {summary.DeliveryAddress}");
+                        }
                         col.Item().Text($"Payment Method: {summary.PaymentMethod}");
-                        col.Item().Text($"Status: {summary.Status}");
+                        col.Item().Text($"Status: {summary.StatusLabel}");
 
                         col.Item().PaddingTop(10).LineHorizontal(0.5f);
 
@@ -498,7 +528,21 @@ namespace RestaurantSystem.Controllers
 
                             foreach (var item in summary.Items)
                             {
-                                table.Cell().Text(item.ProductName);
+                                table.Cell().Column(c =>
+                                {
+                                    c.Item().Text(item.ProductName);
+                                    // Add-ons and special instructions sit under the dish name
+                                    if (item.Addons.Any())
+                                    {
+                                        c.Item().Text("+ " + string.Join(", ", item.Addons))
+                                            .FontSize(8).FontColor(QuestPDF.Helpers.Colors.Grey.Medium);
+                                    }
+                                    if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                    {
+                                        c.Item().Text($"Note: {item.SpecialInstructions}")
+                                            .FontSize(8).Italic().FontColor(QuestPDF.Helpers.Colors.Grey.Medium);
+                                    }
+                                });
                                 table.Cell().Text(item.Quantity.ToString());
                                 table.Cell().AlignRight().Text($"RM {item.UnitPrice:F2}");
                                 table.Cell().AlignRight().Text($"RM {item.SubTotal:F2}");
@@ -506,6 +550,25 @@ namespace RestaurantSystem.Controllers
                         });
 
                         col.Item().PaddingTop(10).LineHorizontal(0.5f);
+
+                        // Price breakdown (Workflow.md §2.4)
+                        col.Item().PaddingTop(8).Column(breakdown =>
+                        {
+                            void Line(string label, string value)
+                            {
+                                breakdown.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text(label).FontSize(9);
+                                    r.ConstantItem(90).AlignRight().Text(value).FontSize(9);
+                                });
+                            }
+
+                            Line("Subtotal", $"RM {summary.SubtotalAmount:F2}");
+                            if (summary.ServiceCharge > 0) Line("Service Charge", $"RM {summary.ServiceCharge:F2}");
+                            if (summary.TaxAmount > 0) Line("Tax", $"RM {summary.TaxAmount:F2}");
+                            if (summary.DeliveryFee > 0) Line("Delivery Fee", $"RM {summary.DeliveryFee:F2}");
+                            if (summary.DiscountAmount > 0) Line("Discount", $"-RM {summary.DiscountAmount:F2}");
+                        });
 
                         col.Item().PaddingTop(10).AlignRight().Text($"Total Paid: RM {summary.TotalAmount:F2}")
                             .Bold().FontSize(13);
@@ -562,16 +625,28 @@ namespace RestaurantSystem.Controllers
         {
             var userId = GetCurrentUserId();
 
+            // Recalculate server-side from database prices (Workflow.md §8.10) — never trust
+            // totals that came back from the browser.
+            var subtotal = cart.Sum(i => i.Total);
+            var totals = Pricing.Calculate(subtotal, diningOption, pricing);
+            var now = DateTime.Now;
+
             var order = new Order
             {
                 UserId = userId!.Value,
-                OrderDate = DateTime.Now,
-                TotalAmount = cart.Sum(i => i.Total),
-                OrderStatus = "PENDING",
+                OrderDate = now,
+                SubtotalAmount = totals.Subtotal,
+                ServiceCharge = totals.ServiceCharge,
+                TaxAmount = totals.Tax,
+                DeliveryFee = totals.DeliveryFee,
+                DiscountAmount = totals.Discount,
+                TotalAmount = totals.Total,
+                OrderStatus = OrderStatus.Pending,
+                StatusUpdatedDate = now,
                 DiningOption = diningOption,
                 TableId = tableId,
                 PaymentMethod = paymentMethod,
-                DeliveryAddress = address
+                DeliveryAddress = diningOption == OrderType.Delivery ? address : null
             };
 
             db.Orders.Add(order);
@@ -581,13 +656,26 @@ namespace RestaurantSystem.Controllers
             // PriceAtOrder locks in the price at the moment of purchase
             foreach (var item in cart)
             {
-                db.OrderDetails.Add(new OrderDetail
+                var detail = new OrderDetail
                 {
                     OrderId = order.OrderId,
                     ProductId = item.ProductId,
                     Quantity = item.Quantity,
-                    PriceAtOrder = item.Price
-                });
+                    PriceAtOrder = item.Price,
+                    SpecialInstructions = item.SpecialInstructions
+                };
+                db.OrderDetails.Add(detail);
+                db.SaveChanges(); // need the OrderDetailId for its add-on snapshots
+
+                foreach (var addon in item.Addons)
+                {
+                    db.OrderItemAddons.Add(new OrderItemAddon
+                    {
+                        OrderDetailId = detail.OrderDetailId,
+                        Name = addon.Name,
+                        PriceAtOrder = addon.Price
+                    });
+                }
 
                 // Deduct stock now that the order is actually being placed
                 // (stock is intentionally NOT reserved just for sitting in a cart)
@@ -605,9 +693,22 @@ namespace RestaurantSystem.Controllers
                 var table = db.Tables.FirstOrDefault(t => t.TableId == tableId.Value);
                 if (table != null)
                 {
-                    table.IsOccupied = true;
+                    table.SetStatus(TableState.Occupied);
                 }
             }
+
+            // Payment record (Workflow.md §3.9). Cash is collected on completion; the e-wallet
+            // mock is treated as paid immediately. A failed payment never reaches this point.
+            db.Payments.Add(new Payment
+            {
+                OrderId = order.OrderId,
+                Method = paymentMethod,
+                Amount = order.TotalAmount,
+                Status = paymentMethod == PaymentMethod.Cash ? PaymentStatus.Unpaid : PaymentStatus.Paid,
+                Reference = $"ORD-{order.OrderId}-{now:yyyyMMddHHmmss}",
+                CreatedDate = now,
+                PaidDate = paymentMethod == PaymentMethod.Cash ? null : now
+            });
 
             db.SaveChanges();
             return order;
@@ -639,15 +740,33 @@ namespace RestaurantSystem.Controllers
                 tableStillOccupied = table?.IsOccupied ?? false;
             }
 
-            var items = (from od in db.OrderDetails
-                         join p in db.Products on od.ProductId equals p.ProductId
-                         where od.OrderId == orderId
-                         select new OrderItemLineVM
-                         {
-                             ProductName = p.ProductName,
-                             Quantity = od.Quantity,
-                             UnitPrice = od.PriceAtOrder
-                         }).ToList();
+            var details = db.OrderDetails.Where(d => d.OrderId == orderId).ToList();
+            var detailIds = details.Select(d => d.OrderDetailId).ToList();
+
+            // Add-on snapshots per order line
+            var addonLookup = db.OrderItemAddons
+                .Where(a => detailIds.Contains(a.OrderDetailId))
+                .ToList()
+                .GroupBy(a => a.OrderDetailId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var productNames = db.Products
+                .Where(p => details.Select(d => d.ProductId).Contains(p.ProductId))
+                .ToDictionary(p => p.ProductId, p => p.ProductName);
+
+            var items = details.Select(d =>
+            {
+                var addons = addonLookup.TryGetValue(d.OrderDetailId, out var list) ? list : new List<OrderItemAddon>();
+                return new OrderItemLineVM
+                {
+                    ProductName = productNames.TryGetValue(d.ProductId, out var name) ? name : "Unknown",
+                    Quantity = d.Quantity,
+                    // Unit price shown to the customer includes the add-ons for that line
+                    UnitPrice = d.PriceAtOrder + addons.Sum(a => a.PriceAtOrder),
+                    Addons = addons.Select(a => a.Name).ToList(),
+                    SpecialInstructions = d.SpecialInstructions
+                };
+            }).ToList();
 
             return new OrderSummaryVM
             {
@@ -655,14 +774,54 @@ namespace RestaurantSystem.Controllers
                 OrderDate = order.OrderDate,
                 Status = order.OrderStatus,
                 TotalAmount = order.TotalAmount,
-                DiningOption = order.DiningOption ?? "",
+                DiningOption = order.DiningOption ?? OrderType.Takeaway,
                 TableName = tableName,
                 TableStillOccupied = tableStillOccupied,
                 PaymentMethod = order.PaymentMethod ?? "",
                 DeliveryAddress = order.DeliveryAddress,
-                Items = items
+                Items = items,
+                SubtotalAmount = order.SubtotalAmount,
+                ServiceCharge = order.ServiceCharge,
+                TaxAmount = order.TaxAmount,
+                DeliveryFee = order.DeliveryFee,
+                DiscountAmount = order.DiscountAmount,
+                StatusUpdatedDate = order.StatusUpdatedDate,
+                CancellationReason = order.CancellationReason,
+                Timeline = BuildTimeline(order.OrderStatus)
             };
         }
+
+        /// <summary>
+        /// Builds the customer-facing tracking steps (Workflow.md §2.6). A cancelled order gets a
+        /// single terminal step instead of the normal progress list.
+        /// </summary>
+        private static List<OrderStatusStepVM> BuildTimeline(string status)
+        {
+            if (status == OrderStatus.Cancelled)
+            {
+                return new List<OrderStatusStepVM>
+                {
+                    new() { Status = OrderStatus.Cancelled, IsDone = true, IsCurrent = true }
+                };
+            }
+
+            var currentIndex = Array.IndexOf(OrderStatus.Flow, status);
+            if (currentIndex < 0) currentIndex = 0;
+
+            return OrderStatus.Flow.Select((s, i) => new OrderStatusStepVM
+            {
+                Status = s,
+                IsDone = i < currentIndex,
+                IsCurrent = i == currentIndex
+            }).ToList();
+        }
+
+        /// <summary>Tables that can currently be offered to a dine-in customer.</summary>
+        private List<Table> AvailableTables() =>
+            db.Tables
+              .Where(t => t.Status == TableState.Available || t.Status == TableState.Cleaning)
+              .OrderBy(t => t.TableName)
+              .ToList();
 
         private List<CartItemVM> GetCartFromSession()
         {

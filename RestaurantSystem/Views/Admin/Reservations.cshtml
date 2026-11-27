@@ -1,0 +1,118 @@
+@model List<RestaurantSystem.Models.ViewModels.ReservationRowVM>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Reservations";
+    ViewBag.ActiveMenu = "Reservations";
+
+    string selectedStatus = ViewBag.SelectedStatus as string ?? "ALL";
+    string selectedDate = ViewBag.SelectedDate as string ?? "";
+}
+
+<div class="admin-page-header">
+    <div>
+        <h2>Reservation Management</h2>
+        <span class="text-muted small">Approve, assign tables and track bookings</span>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="btn-group shadow-sm" role="group">
+        @foreach (var st in new[] { "ALL", "PENDING", "CONFIRMED", "CANCELLED", "REJECTED", "COMPLETED" })
+        {
+            <a asp-action="Reservations" asp-route-status="@st" asp-route-date="@selectedDate"
+               class="btn @(selectedStatus == st ? "btn-admin text-white" : "btn-outline-admin") rounded-pill px-3">
+                @(st == "ALL" ? "All" : RestaurantSystem.Models.ReservationStatus.Label(st))
+            </a>
+        }
+    </div>
+
+    <form asp-action="Reservations" method="get" class="d-flex align-items-center gap-2 ms-auto">
+        <input type="hidden" name="status" value="@selectedStatus" />
+        <input type="date" name="date" value="@selectedDate" class="form-control rounded-pill" style="width:180px;" />
+        <button type="submit" class="btn btn-admin rounded-pill px-3">Filter</button>
+        <a asp-action="Reservations" class="btn btn-outline-secondary rounded-pill px-3">Clear</a>
+    </form>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden admin-table-card">
+    <table class="table table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Customer</th>
+                <th>When</th>
+                <th>Guests</th>
+                <th>Table</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Any())
+            {
+                int i = 1;
+                foreach (var r in Model)
+                {
+                    <tr>
+                        <td class="text-muted">@i</td>
+                        <td>
+                            <div class="fw-semibold">@r.CustomerName</div>
+                            <div class="small text-muted">@r.Phone</div>
+                            @if (!string.IsNullOrWhiteSpace(r.SpecialRequests))
+                            {
+                                <div class="small fst-italic text-muted">@r.SpecialRequests</div>
+                            }
+                        </td>
+                        <td>
+                            <div>@r.ReservationDate.ToString("dd MMM yyyy")</div>
+                            <div class="small text-muted">@r.ReservationTime.ToString(@"hh\:mm")</div>
+                        </td>
+                        <td>@r.Guests</td>
+                        <td>@(r.TableName ?? "—")</td>
+                        <td><span class="badge @r.StatusBadgeClass rounded-pill">@r.StatusLabel</span></td>
+                        <td class="text-end">
+                            <div class="table-actions">
+                                @if (r.Status == RestaurantSystem.Models.ReservationStatus.Pending)
+                                {
+                                    <form asp-action="UpdateReservationStatus" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="@r.ReservationId" />
+                                        <input type="hidden" name="status" value="@RestaurantSystem.Models.ReservationStatus.Confirmed" />
+                                        <button type="submit" class="btn btn-sm btn-success rounded-pill px-2 py-1 fw-bold">Approve</button>
+                                    </form>
+                                    <form asp-action="UpdateReservationStatus" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="@r.ReservationId" />
+                                        <input type="hidden" name="status" value="@RestaurantSystem.Models.ReservationStatus.Rejected" />
+                                        <button type="submit" class="btn btn-sm btn-danger rounded-pill px-2 py-1 fw-bold"
+                                                onclick="return confirm('Reject this reservation?');">Reject</button>
+                                    </form>
+                                }
+                                @if (r.Status == RestaurantSystem.Models.ReservationStatus.Confirmed)
+                                {
+                                    <form asp-action="UpdateReservationStatus" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="@r.ReservationId" />
+                                        <input type="hidden" name="status" value="@RestaurantSystem.Models.ReservationStatus.Completed" />
+                                        <button type="submit" class="btn btn-sm btn-secondary rounded-pill px-2 py-1 fw-bold">Complete</button>
+                                    </form>
+                                    <form asp-action="UpdateReservationStatus" method="post" class="d-inline">
+                                        <input type="hidden" name="id" value="@r.ReservationId" />
+                                        <input type="hidden" name="status" value="@RestaurantSystem.Models.ReservationStatus.Cancelled" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 fw-bold">Cancel</button>
+                                    </form>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="fa-regular fa-calendar fs-2 d-block mb-2"></i>
+                        No reservations found.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

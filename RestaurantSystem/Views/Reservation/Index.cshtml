@@ -1,0 +1,77 @@
+@model List<RestaurantSystem.Models.Reservation>
+@{
+    ViewData["Title"] = "My Reservations";
+}
+
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0"><i class="fa-solid fa-calendar-check me-2"></i>My Reservations</h2>
+        <a asp-action="Create" class="btn btn-orange rounded-pill px-4 fw-bold">
+            <i class="fa-solid fa-plus me-1"></i> New Reservation
+        </a>
+    </div>
+
+    @if (TempData["Info"] != null)
+    {
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="fa-solid fa-circle-info me-2"></i>@TempData["Info"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
+            <i class="fa-regular fa-calendar fa-2x text-muted mb-3"></i>
+            <h5 class="fw-bold">No reservations yet</h5>
+            <p class="text-muted">Book a table and we'll have it ready for you.</p>
+            <div><a asp-action="Create" class="btn btn-orange rounded-pill px-4">Book a Table</a></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var r in Model)
+            {
+                var badge = RestaurantSystem.Models.ReservationStatus.BadgeClass(r.Status);
+                var label = RestaurantSystem.Models.ReservationStatus.Label(r.Status);
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm rounded-4 h-100">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <div class="fw-bold fs-5">@r.ReservationDate.ToString("dddd, dd MMM yyyy")</div>
+                                    <div class="text-muted">@r.ReservationTime.ToString(@"hh\:mm") · @r.Guests guest(s)</div>
+                                </div>
+                                <span class="badge @badge rounded-pill">@label</span>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(r.SpecialRequests))
+                            {
+                                <div class="small text-muted mb-3">
+                                    <i class="fa-solid fa-note-sticky me-1"></i>@r.SpecialRequests
+                                </div>
+                            }
+
+                            @if (r.Status == RestaurantSystem.Models.ReservationStatus.Pending)
+                            {
+                                <div class="d-flex gap-2 mt-3">
+                                    <a asp-action="Edit" asp-route-id="@r.ReservationId" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                                        <i class="fa-solid fa-pen me-1"></i>Edit
+                                    </a>
+                                    <form asp-action="Cancel" asp-route-id="@r.ReservationId" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                                                onclick="return confirm('Cancel this reservation?');">
+                                            <i class="fa-solid fa-xmark me-1"></i>Cancel
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
