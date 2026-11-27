@@ -1,5 +1,9 @@
-﻿@{
+@{
     ViewData["Title"] = "Login";
+
+    // Which portal is selected — set by the controller ("MEMBER" by default).
+    string loginAs = (ViewBag.LoginAs as string) ?? "MEMBER";
+    bool isAdmin = loginAs == "ADMIN";
 }
 
 <div class="container ffg-auth-wrap">
@@ -31,9 +35,33 @@
         </aside>
 
         <div class="ffg-auth-form">
-            <span class="ffg-eyebrow">Member access</span>
+            <span class="ffg-eyebrow">@(isAdmin ? "Staff access" : "Member access")</span>
             <h1>Sign in</h1>
-            <p class="sub">Enter your account details to continue.</p>
+            <p class="sub">
+                @(isAdmin
+                    ? "Administrator sign-in for restaurant staff."
+                    : "Enter your account details to continue.")
+            </p>
+
+            @* ---- Member / Admin login type switch ---- *@
+            <div class="ffg-login-switch mb-4" role="tablist" aria-label="Login type">
+                <a asp-action="Login"
+                   asp-route-type="MEMBER"
+                   asp-route-returnURL="@ViewBag.ReturnURL"
+                   class="ffg-login-switch-btn @(isAdmin ? "" : "active")"
+                   role="tab"
+                   aria-selected="@(isAdmin ? "false" : "true")">
+                    <i class="fa-solid fa-user me-2"></i>Member
+                </a>
+                <a asp-action="Login"
+                   asp-route-type="ADMIN"
+                   asp-route-returnURL="@ViewBag.ReturnURL"
+                   class="ffg-login-switch-btn @(isAdmin ? "active" : "")"
+                   role="tab"
+                   aria-selected="@(isAdmin ? "true" : "false")">
+                    <i class="fa-solid fa-user-shield me-2"></i>Admin
+                </a>
+            </div>
 
             @if (TempData["Info"] != null)
             {
@@ -48,14 +76,26 @@
                 <div class="alert alert-danger small">@ViewBag.Error</div>
             }
 
+            @* Validation summary shows the login-type mismatch message *@
+            <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
             <form asp-action="Login" method="post">
+                @* Mirrors the selected tab so the server can enforce it *@
+                <input type="hidden" name="LoginAs" value="@loginAs" />
+                @if (ViewBag.ReturnURL != null)
+                {
+                    <input type="hidden" name="returnURL" value="@ViewBag.ReturnURL" />
+                }
+
                 <div class="mb-3">
                     <label class="form-label">Username</label>
-                    <input type="text" name="username" class="form-control" placeholder="Enter your username" required />
+                    <input type="text" name="Username" class="form-control" placeholder="Enter your username"
+                           autocomplete="username" required />
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" placeholder="••••••••" required />
+                    <input type="password" name="Password" class="form-control" placeholder="••••••••"
+                           autocomplete="current-password" required />
                 </div>
 
                 <div class="d-flex justify-content-end mb-3">
@@ -65,13 +105,21 @@
                 </div>
 
                 <button type="submit" class="btn btn-orange w-100 py-2 fw-bold">
-                    <i class="fa-solid fa-right-to-bracket me-2"></i>Login
+                    <i class="fa-solid @(isAdmin ? "fa-user-shield" : "fa-right-to-bracket") me-2"></i>
+                    @(isAdmin ? "Sign in as Admin" : "Login")
                 </button>
             </form>
 
             <div class="ffg-auth-footer">
-                Don't have an account?
-                <a asp-action="Register">Register here</a>
+                @if (isAdmin)
+                {
+                    <span>Staff accounts are created by an administrator.</span>
+                }
+                else
+                {
+                    <span>Don't have an account?</span>
+                    <a asp-action="Register">Register here</a>
+                }
             </div>
         </div>
     </div>

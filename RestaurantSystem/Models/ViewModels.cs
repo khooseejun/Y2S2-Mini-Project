@@ -18,6 +18,15 @@ namespace RestaurantSystem.Models
             public required string Password { get; set; }
 
             public bool RememberMe { get; set; }
+
+            /// <summary>
+            /// Which kind of account the visitor is signing in as: "MEMBER" or "ADMIN".
+            /// Chosen with the toggle on the login page so the two portals are separated —
+            /// an ADMIN account cannot sign in through the member form, and vice versa.
+            /// Not [Required] on purpose: a missing value falls back to "MEMBER" so that
+            /// existing links/forms keep working.
+            /// </summary>
+            public string? LoginAs { get; set; }
         }
 
         // Register ViewModel

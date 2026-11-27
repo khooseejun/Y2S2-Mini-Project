@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -82,13 +82,21 @@ namespace RestaurantSystem.Controllers
 
         // ==========================================
         // [GET/POST: Login]
+        //
+        // The login page has a Member / Admin toggle so the two portals are separated.
+        // The selected type ("MEMBER" or "ADMIN") is posted as LoginVM.LoginAs and enforced
+        // here — signing in as the wrong kind of account is rejected, it is not silently
+        // redirected.
         // ==========================================
+        private const string RoleMember = "MEMBER";
+        private const string RoleAdmin = "ADMIN";
+
         [HttpGet]
-        public IActionResult Login(string? returnURL)
+        public IActionResult Login(string? returnURL, string? type)
         {
             if (User.Identity?.IsAuthenticated == true)
             {
-                if (User.IsInRole("ADMIN"))
+                if (User.IsInRole(RoleAdmin))
                 {
                     return RedirectToAction("Dashboard", "Admin");
                 }
@@ -96,12 +104,16 @@ namespace RestaurantSystem.Controllers
             }
 
             ViewBag.ReturnURL = returnURL;
+            ViewBag.LoginAs = NormaliseLoginAs(type);
             return View();
         }
 
         [HttpPost]
         public IActionResult Login(ViewModels.LoginVM vm, string? returnURL)
         {
+            // Which portal the visitor chose. Anything unrecognised falls back to MEMBER.
+            var loginAs = NormaliseLoginAs(vm.LoginAs);
+
             if (ModelState.IsValid)
             {
                 var u = db.Users.FirstOrDefault(x => x.Username == vm.Username);
@@ -112,6 +124,22 @@ namespace RestaurantSystem.Controllers
                     {
                         ModelState.AddModelError("", "This account has been blocked. Please contact the restaurant if you believe this is a mistake.");
                         ViewBag.ReturnURL = returnURL;
+                        ViewBag.LoginAs = loginAs;
+                        return View(vm);
+                    }
+
+                    // Enforce the selected login type. Deliberately vague about which half is
+                    // wrong so this cannot be used to discover whether an account is an admin.
+                    if (!MatchesLoginType(u.Role, loginAs))
+                    {
+                        ModelState.AddModelError("", loginAs == RoleAdmin
+                            ? "These credentials do not belong to an administrator account. Please use the Member tab, or contact the restaurant."
+                            : "These credentials belong to a staff account. Please use the Admin tab to sign in.");
+
+                        ViewBag.ReturnURL = returnURL;
+                        ViewBag.LoginAs = loginAs;
+                        // Clear the password so it is not re-posted in the rendered form
+                        vm.Password = "";
                         return View(vm);
                     }
 
@@ -124,7 +152,7 @@ namespace RestaurantSystem.Controllers
                         return LocalRedirect(returnURL);
                     }
 
-                    if (u.Role == "ADMIN")
+                    if (u.Role == RoleAdmin)
                     {
                         return RedirectToAction("Dashboard", "Admin");
                     }
@@ -138,8 +166,24 @@ namespace RestaurantSystem.Controllers
             }
 
             ViewBag.ReturnURL = returnURL;
+            ViewBag.LoginAs = loginAs;
+            vm.Password = "";
             return View(vm);
         }
+
+        /// <summary>Normalises the posted login type to "MEMBER" or "ADMIN".</summary>
+        private static string NormaliseLoginAs(string? value) =>
+            string.Equals(value, RoleAdmin, StringComparison.OrdinalIgnoreCase) ? RoleAdmin : RoleMember;
+
+        /// <summary>
+        /// True when an account with <paramref name="accountRole"/> may sign in through the
+        /// selected portal. Admins are only allowed on the Admin tab; every non-admin account
+        /// signs in through the Member tab.
+        /// </summary>
+        private static bool MatchesLoginType(string? accountRole, string loginAs) =>
+            loginAs == RoleAdmin
+                ? string.Equals(accountRole, RoleAdmin, StringComparison.OrdinalIgnoreCase)
+                : !string.Equals(accountRole, RoleAdmin, StringComparison.OrdinalIgnoreCase);
 
 
         // ==========================================

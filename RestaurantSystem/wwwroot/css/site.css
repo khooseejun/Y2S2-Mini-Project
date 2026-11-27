@@ -1089,3 +1089,59 @@ a:hover {
 html.dark-mode .order-timeline li.current .fw-bold {
     color: var(--ffg-gold-400);
 }
+
+/* ==========================================================================
+   Login: Member / Admin portal switch
+   ========================================================================== */
+.ffg-login-switch {
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    border-radius: 999px;
+    background: var(--ffg-cream-alt);
+    border: 1px solid var(--ffg-line);
+}
+
+.ffg-login-switch-btn {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 1rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--ffg-muted);
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ffg-login-switch-btn:hover {
+    color: var(--ffg-emerald-800);
+    text-decoration: none;
+}
+
+.ffg-login-switch-btn.active {
+    background: var(--ffg-surface);
+    color: var(--ffg-emerald-800);
+    box-shadow: var(--ffg-shadow-sm);
+}
+
+.ffg-login-switch-btn:focus-visible {
+    outline: 2px solid var(--ffg-gold-500);
+    outline-offset: 2px;
+}
+
+html.dark-mode .ffg-login-switch {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+html.dark-mode .ffg-login-switch-btn {
+    color: var(--ffg-gold-200);
+}
+
+html.dark-mode .ffg-login-switch-btn.active {
+    background: var(--ffg-emerald-700);
+    color: #ffffff;
+}
