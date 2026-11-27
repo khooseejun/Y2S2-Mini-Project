@@ -1,0 +1,29 @@
+﻿/* Layout-level tweaks. Global styling lives in wwwroot/css/site.css. */
+
+a.navbar-brand,
+a.ffg-brand {
+    white-space: normal;
+    text-align: center;
+    word-break: keep-all;
+}
+
+a {
+    color: var(--ffg-emerald-700, #175741);
+}
+
+.border-top {
+    border-top: 1px solid var(--ffg-line, #e5ddcf);
+}
+
+.border-bottom {
+    border-bottom: 1px solid var(--ffg-line, #e5ddcf);
+}
+
+.box-shadow {
+    box-shadow: 0 .25rem .75rem rgba(8, 37, 27, .06);
+}
+
+button.accept-policy {
+    font-size: 1rem;
+    line-height: inherit;
+}

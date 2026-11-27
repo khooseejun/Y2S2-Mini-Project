@@ -1,0 +1,19 @@
+{
+  // ==========================================================================
+  // TEMPLATE — copy this file to `appsettings.Development.Local.json`
+  // in the same folder, then fill in your own sender account.
+  //
+  // `appsettings.Development.Local.json` is listed in `.gitignore`, so your
+  // credentials stay on your machine and are never shared.
+  //
+  // This only affects password-recovery emails. Everything else in the app
+  // works with no email configuration at all.
+  // ==========================================================================
+  "EmailSettings": {
+    "SmtpServer": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "SenderName": "FFG Restaurant",
+    "SenderEmail": "you@example.com",
+    "SenderPassword": "your-16-char-gmail-app-password"
+  }
+}

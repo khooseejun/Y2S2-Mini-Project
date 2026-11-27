@@ -1,0 +1,326 @@
+﻿/* ==========================================================================
+   FFG RESTAURANT — HOME PAGE
+   ========================================================================== */
+
+/* ---------- Hero ---------- */
+.ffg-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 30px;
+    min-height: 580px;
+    display: flex;
+    align-items: center;
+    background:
+        linear-gradient(115deg, rgba(8, 37, 27, 0.94) 8%, rgba(8, 37, 27, 0.72) 45%, rgba(8, 37, 27, 0.35) 100%),
+        url('/images/restaurant-bg.jpg') center/cover no-repeat;
+    box-shadow: 0 40px 80px -50px rgba(8, 37, 27, 0.85);
+}
+
+.ffg-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(560px 300px at 82% 22%, rgba(201, 162, 39, 0.28), transparent 68%);
+    pointer-events: none;
+}
+
+.ffg-hero-inner {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    padding: clamp(2.5rem, 6vw, 5rem);
+}
+
+.ffg-hero-content {
+    max-width: 640px;
+}
+
+.ffg-hero .ffg-eyebrow {
+    color: var(--ffg-gold-400);
+}
+
+.ffg-hero .ffg-eyebrow::before {
+    background: var(--ffg-gold-400);
+}
+
+.ffg-hero-title {
+    font-size: clamp(2.7rem, 5.6vw, 4.4rem);
+    line-height: 1.02;
+    color: #ffffff;
+    margin: 0 0 1.25rem;
+    text-wrap: balance;
+}
+
+.ffg-hero-title em {
+    font-style: italic;
+    color: var(--ffg-gold-400);
+}
+
+.ffg-hero-lead {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 1.05rem;
+    line-height: 1.75;
+    max-width: 520px;
+    margin-bottom: 2rem;
+}
+
+.ffg-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+}
+
+.btn-ffg-ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    color: #ffffff !important;
+}
+
+.btn-ffg-ghost:hover,
+.btn-ffg-ghost:focus {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--ffg-gold-400);
+    color: var(--ffg-gold-400) !important;
+}
+
+.ffg-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 3rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    padding-top: 1.6rem;
+}
+
+.ffg-hero-stat {
+    padding-right: 2.4rem;
+    margin-right: 2.4rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.ffg-hero-stat:last-child {
+    border-right: none;
+    margin-right: 0;
+    padding-right: 0;
+}
+
+.ffg-hero-stat .value {
+    display: block;
+    font-family: var(--ffg-font-display);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--ffg-gold-400);
+    line-height: 1;
+}
+
+.ffg-hero-stat .label {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* ---------- Section heading ---------- */
+.ffg-section {
+    margin-top: clamp(3.5rem, 7vw, 5.5rem);
+}
+
+.ffg-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    margin-bottom: 2rem;
+}
+
+.ffg-section-head h2 {
+    font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+    margin: 0;
+}
+
+.ffg-section-head p {
+    color: var(--ffg-muted);
+    margin: 0.35rem 0 0;
+    max-width: 520px;
+}
+
+.ffg-section-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--ffg-emerald-700) !important;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(23, 87, 65, 0.35);
+    padding-bottom: 0.2rem;
+    white-space: nowrap;
+}
+
+.ffg-section-link:hover {
+    color: var(--ffg-gold-700) !important;
+    border-color: var(--ffg-gold-500);
+}
+
+/* ---------- Signature picks carousel ---------- */
+.ffg-carousel {
+    border-radius: 26px;
+    overflow: hidden;
+    box-shadow: var(--ffg-shadow);
+    border: 1px solid var(--ffg-line);
+}
+
+.carousel-banner-inner {
+    height: 400px;
+}
+
+@media (max-width: 767.98px) {
+    .carousel-banner-inner {
+        height: 320px;
+    }
+}
+
+.ffg-slide {
+    height: 100%;
+    position: relative;
+    background-size: cover;
+    background-position: center;
+}
+
+.ffg-slide::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(8, 37, 27, 0.85) 0%, rgba(8, 37, 27, 0.45) 45%, rgba(8, 37, 27, 0.05) 100%);
+}
+
+.ffg-slide-body {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    color: #ffffff;
+}
+
+.ffg-slide-body .ffg-tag {
+    align-self: flex-start;
+    background: rgba(201, 162, 39, 0.9);
+    color: var(--ffg-emerald-950);
+    border-color: transparent;
+    margin-bottom: 0.9rem;
+}
+
+.ffg-slide-body h3 {
+    color: #ffffff;
+    font-size: clamp(1.6rem, 3.2vw, 2.5rem);
+    margin: 0 0 0.4rem;
+}
+
+.ffg-slide-body p {
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+}
+
+.ffg-carousel .carousel-control-prev,
+.ffg-carousel .carousel-control-next {
+    width: 8%;
+    opacity: 0.9;
+}
+
+.ffg-carousel .carousel-control-prev-icon,
+.ffg-carousel .carousel-control-next-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    background-color: rgba(8, 37, 27, 0.72);
+    background-size: 45%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ---------- Feature cards ---------- */
+.ffg-feature {
+    height: 100%;
+    padding: 1.9rem;
+    border-radius: 22px;
+    border: 1px solid var(--ffg-line);
+    background: var(--ffg-surface);
+    box-shadow: var(--ffg-shadow-sm);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.ffg-feature:hover {
+    transform: translateY(-4px);
+    border-color: rgba(201, 162, 39, 0.5);
+    box-shadow: var(--ffg-shadow);
+}
+
+.ffg-feature-icon {
+    width: 54px;
+    height: 54px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 16px;
+    background: linear-gradient(150deg, var(--ffg-emerald-700), var(--ffg-emerald-950));
+    color: var(--ffg-gold-400);
+    font-size: 1.25rem;
+    margin-bottom: 1.15rem;
+}
+
+.ffg-feature h3 {
+    font-size: 1.3rem;
+    margin-bottom: 0.4rem;
+}
+
+.ffg-feature p {
+    color: var(--ffg-muted);
+    font-size: 0.92rem;
+    line-height: 1.65;
+    margin: 0;
+}
+
+/* ---------- CTA band ---------- */
+.ffg-cta-band {
+    margin-top: clamp(3.5rem, 7vw, 5.5rem);
+    border-radius: 26px;
+    padding: clamp(2rem, 5vw, 3.5rem);
+    background:
+        radial-gradient(500px 260px at 88% 15%, rgba(201, 162, 39, 0.3), transparent 62%),
+        linear-gradient(120deg, var(--ffg-emerald-900), var(--ffg-emerald-950));
+    color: #ffffff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    box-shadow: var(--ffg-shadow);
+}
+
+.ffg-cta-band h2 {
+    color: #ffffff;
+    margin: 0 0 0.4rem;
+    font-size: clamp(1.7rem, 3vw, 2.4rem);
+}
+
+.ffg-cta-band p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
+    max-width: 480px;
+}
+
+@media (max-width: 575.98px) {
+    .ffg-hero-stats {
+        gap: 1.25rem 0;
+    }
+
+    .ffg-hero-stat {
+        padding-right: 1.25rem;
+        margin-right: 1.25rem;
+    }
+}

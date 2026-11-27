@@ -1,0 +1,392 @@
+@{
+    ViewData["Title"] = "Our Menu";
+
+    bool isAdmin = User.Identity?.IsAuthenticated == true && User.IsInRole("ADMIN");
+    bool isMember = User.Identity?.IsAuthenticated == true && !isAdmin;
+    string userRole = isAdmin ? "ADMIN" : (isMember ? "MEMBER" : "GUEST");
+}
+<link rel="stylesheet" href="~/css/menu.css" asp-append-version="true" />
+
+<div class="container py-4">
+
+    <section class="ffg-menu-hero">
+        <span class="ffg-eyebrow">FFG Kitchen</span>
+        <h1>Our menu</h1>
+        <p>Four collections, one kitchen. Filter by course or price, then build your order — every dish is prepared fresh.</p>
+    </section>
+
+    <div class="row">
+        <div class="col-lg-3 mb-4">
+            <aside class="ffg-filter-panel">
+                <div class="ffg-filter-title">Menu Collections</div>
+                <div id="category-filter">
+                    <button type="button" class="ffg-category-pill category-pill active" data-category="0">
+                        <span>All Products</span><i class="fa-solid fa-chevron-right chev"></i>
+                    </button>
+                    @* Rendered from the Categories table (HomeController.Menu) so the ids and
+                       names always match whatever database this copy of the project runs on. *@
+                    @foreach (var category in (ViewBag.Categories as List<Category> ?? new List<Category>()))
+                    {
+                        <button type="button" class="ffg-category-pill category-pill" data-category="@category.CategoryId">
+                            <span>@category.CategoryName</span><i class="fa-solid fa-chevron-right chev"></i>
+                        </button>
+                    }
+                </div>
+
+                <hr />
+
+                <div class="ffg-filter-title">Price Range (RM)</div>
+                <div class="d-flex gap-2 align-items-center mb-3 ffg-price-inputs">
+                    <input type="number" id="price-min" class="form-control" placeholder="Min" min="0" step="0.5" />
+                    <span class="ffg-muted">–</span>
+                    <input type="number" id="price-max" class="form-control" placeholder="Max" min="0" step="0.5" />
+                </div>
+                <button type="button" id="filters-reset-btn" class="btn btn-outline-ffg btn-sm w-100">
+                    Reset All Filters
+                </button>
+            </aside>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="ffg-search-bar">
+                <div class="ffg-search-wrap">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-input" class="form-control" placeholder="Search for a dish..." />
+                </div>
+
+                <select id="sort-select" class="form-select ffg-sort-select">
+                    <option value="name_asc">Name (A–Z)</option>
+                    <option value="name_desc">Name (Z–A)</option>
+                    <option value="price_asc">Price (Low to High)</option>
+                    <option value="price_desc">Price (High to Low)</option>
+                </select>
+            </div>
+
+            <div id="results-summary" class="ffg-results-summary"></div>
+
+            <div id="product-grid" class="row"></div>
+
+            <nav id="pagination-container" class="mt-4"></nav>
+        </div>
+    </div>
+</div>
+
+<script>
+    const userRole = "@userRole"; // "ADMIN" | "MEMBER" | "GUEST" — fixed for the whole page load
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const state = {
+            search: "",
+            categoryId: 0,
+            minPrice: null,
+            maxPrice: null,
+            sortBy: "name_asc",
+            page: 1
+        };
+
+        const grid = document.getElementById("product-grid");
+        const paginationContainer = document.getElementById("pagination-container");
+        const resultsSummary = document.getElementById("results-summary");
+        const searchInput = document.getElementById("search-input");
+        const sortSelect = document.getElementById("sort-select");
+        const priceMinInput = document.getElementById("price-min");
+        const priceMaxInput = document.getElementById("price-max");
+        const resetBtn = document.getElementById("filters-reset-btn");
+
+        let searchDebounceTimer = null;
+        let priceDebounceTimer = null;
+
+        // ---------- Toast helper (shared pattern used across the app) ----------
+        function showLocalToast(message) {
+            const oldToast = document.querySelector(".local-toast");
+            if (oldToast) oldToast.remove();
+
+            const toast = document.createElement("div");
+            toast.className = "local-toast";
+            toast.innerText = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.classList.add("show"), 50);
+            setTimeout(() => {
+                toast.classList.remove("show");
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function bounceBadge(id, value) {
+            const badge = document.getElementById(id);
+            if (badge) {
+                badge.innerText = value;
+                badge.classList.remove("badge-bounce");
+                void badge.offsetWidth;
+                badge.classList.add("badge-bounce");
+            }
+        }
+
+        // ---------- Build a single product card's HTML ----------
+        function buildCard(p) {
+            let actionHtml = "";
+            const outOfStock = p.stockQuantity <= 0;
+
+            if (userRole === "ADMIN") {
+                actionHtml = `
+                    <a href="/Admin/EditProduct/${p.productId}" class="btn btn-sm btn-outline-danger w-100 fw-bold">Manage Item</a>
+                `;
+            } else if (userRole === "MEMBER") {
+                const favClass = p.isFavorited ? "btn-danger in-favorite" : "btn-outline-secondary";
+                const favLabel = p.isFavorited ? "Added to Favorites" : "Add to Favorite";
+                const favDisabled = p.isFavorited ? "disabled" : "";
+
+                const cartButtonHtml = outOfStock
+                    ? `<button type="button" class="btn btn-sm btn-secondary w-100 fw-bold" disabled>Out of Stock</button>`
+                    : `<form class="add-to-cart-form" data-product-id="${p.productId}">
+                           <button type="submit" class="btn btn-sm btn-orange w-100 fw-bold">
+                               <i class="fa-solid fa-basket-shopping me-1"></i> Add to Cart
+                           </button>
+                       </form>`;
+
+                actionHtml = `
+                    <div class="d-grid gap-2">
+                        ${cartButtonHtml}
+                        <button type="button"
+                                class="btn btn-sm ffg-fav-btn w-100 add-to-favorite-btn ${favClass}"
+                                data-product-id="${p.productId}"
+                                ${favDisabled}>
+                            <i class="fa-solid fa-heart me-1"></i>
+                            <span class="fav-btn-label">${favLabel}</span>
+                        </button>
+                    </div>
+                `;
+            } else {
+                actionHtml = `<a href="/Account/Login" class="btn btn-sm btn-outline-ffg w-100 fw-bold">Login to Order</a>`;
+            }
+
+            let stockNoticeHtml = "";
+            if (outOfStock) {
+                stockNoticeHtml = `<div class="ffg-stock-note text-danger mb-2"><i class="fa-solid fa-circle-exclamation me-1"></i>Out of Stock</div>`;
+            } else if (p.stockQuantity <= 10) {
+                stockNoticeHtml = `<div class="ffg-stock-note text-orange mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Only ${p.stockQuantity} left!</div>`;
+            }
+
+            return `
+                <div class="col-sm-6 col-xl-4 mb-4">
+                    <article class="ffg-product-card">
+                        <a href="/Home/ProductDetail/${p.productId}" class="ffg-product-media">
+                            <img src="${p.imageUrl}" alt="${p.productName}" loading="lazy">
+                            <span class="ffg-tag">${p.categoryName}</span>
+                        </a>
+
+                        <div class="ffg-product-body">
+                            <a href="/Home/ProductDetail/${p.productId}" class="ffg-product-title">${p.productName}</a>
+                            <p class="ffg-product-desc">${p.description ?? ""}</p>
+
+                            <div class="ffg-product-foot">
+                                ${stockNoticeHtml}
+                                <span class="ffg-product-price"><span class="currency">RM</span>${p.price.toFixed(2)}</span>
+                                <div class="ffg-product-actions">${actionHtml}</div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            `;
+        }
+
+        // ---------- Pagination controls ----------
+        function buildPagination(totalPages, currentPage) {
+            if (totalPages <= 1) {
+                paginationContainer.innerHTML = "";
+                return;
+            }
+
+            let html = `<ul class="pagination justify-content-center ffg-pagination">`;
+
+            html += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
+                        <button type="button" class="page-link page-btn" data-page="${currentPage - 1}"><i class="fa-solid fa-chevron-left me-1"></i>Prev</button>
+                     </li>`;
+
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<li class="page-item ${i === currentPage ? "active" : ""}">
+                            <button type="button" class="page-link page-btn" data-page="${i}">${i}</button>
+                         </li>`;
+            }
+
+            html += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
+                        <button type="button" class="page-link page-btn" data-page="${currentPage + 1}">Next<i class="fa-solid fa-chevron-right ms-1"></i></button>
+                     </li>`;
+
+            html += `</ul>`;
+            paginationContainer.innerHTML = html;
+        }
+
+        // ---------- The single AJAX call everything funnels through ----------
+        function loadProducts() {
+            grid.innerHTML = `
+                <div class="col-12 d-flex justify-content-center py-5">
+                    <div class="spinner-border" style="color: var(--ffg-gold-500);" role="status"><span class="visually-hidden">Loading...</span></div>
+                </div>
+            `;
+
+            const params = new URLSearchParams();
+            if (state.search) params.set("search", state.search);
+            if (state.categoryId > 0) params.set("categoryId", state.categoryId);
+            if (state.minPrice !== null && state.minPrice !== "") params.set("minPrice", state.minPrice);
+            if (state.maxPrice !== null && state.maxPrice !== "") params.set("maxPrice", state.maxPrice);
+            params.set("sortBy", state.sortBy);
+            params.set("page", state.page);
+
+            fetch("/Home/SearchProducts?" + params.toString())
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.products || data.products.length === 0) {
+                        grid.innerHTML = `<div class="col-12 text-center py-5"><p class="ffg-muted fs-5 mb-0">No dishes match your search.</p></div>`;
+                        resultsSummary.innerText = "0 results";
+                    } else {
+                        grid.innerHTML = data.products.map(buildCard).join("");
+                        resultsSummary.innerText = `${data.totalCount} dish${data.totalCount === 1 ? "" : "es"} found`;
+                    }
+
+                    state.page = data.currentPage;
+                    buildPagination(data.totalPages, data.currentPage);
+                })
+                .catch(err => {
+                    console.error("AJAX error:", err);
+                    grid.innerHTML = `<div class="col-12 text-center py-5"><p class="text-danger mb-0">Something went wrong loading the menu. Please try again.</p></div>`;
+                });
+        }
+
+        // ---------- Filter/sort/search/page event wiring ----------
+        searchInput.addEventListener("input", function () {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                state.search = searchInput.value.trim();
+                state.page = 1;
+                loadProducts();
+            }, 400);
+        });
+
+        sortSelect.addEventListener("change", function () {
+            state.sortBy = sortSelect.value;
+            state.page = 1;
+            loadProducts();
+        });
+
+        document.querySelectorAll(".category-pill").forEach(pill => {
+            pill.addEventListener("click", function () {
+                document.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
+                this.classList.add("active");
+                state.categoryId = parseInt(this.dataset.category, 10);
+                state.page = 1;
+                loadProducts();
+            });
+        });
+
+        function onPriceChange() {
+            clearTimeout(priceDebounceTimer);
+            priceDebounceTimer = setTimeout(() => {
+                state.minPrice = priceMinInput.value !== "" ? priceMinInput.value : null;
+                state.maxPrice = priceMaxInput.value !== "" ? priceMaxInput.value : null;
+                state.page = 1;
+                loadProducts();
+            }, 400);
+        }
+        priceMinInput.addEventListener("input", onPriceChange);
+        priceMaxInput.addEventListener("input", onPriceChange);
+
+        resetBtn.addEventListener("click", function () {
+            state.search = "";
+            state.categoryId = 0;
+            state.minPrice = null;
+            state.maxPrice = null;
+            state.sortBy = "name_asc";
+            state.page = 1;
+
+            searchInput.value = "";
+            priceMinInput.value = "";
+            priceMaxInput.value = "";
+            sortSelect.value = "name_asc";
+            document.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
+            document.querySelector('.category-pill[data-category="0"]').classList.add("active");
+
+            loadProducts();
+        });
+
+        // Pagination clicks (event delegation, since buttons are re-created each load)
+        paginationContainer.addEventListener("click", function (e) {
+            const btn = e.target.closest(".page-btn");
+            if (!btn || btn.closest(".page-item").classList.contains("disabled")) return;
+
+            const targetPage = parseInt(btn.dataset.page, 10);
+            if (isNaN(targetPage) || targetPage < 1) return;
+
+            state.page = targetPage;
+            loadProducts();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        // ---------- Add to Cart / Add to Favorite (event delegation on the grid) ----------
+        grid.addEventListener("submit", function (e) {
+            const form = e.target.closest(".add-to-cart-form");
+            if (!form) return;
+            e.preventDefault();
+
+            const productId = form.dataset.productId;
+
+            fetch("/Home/AddAjax", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "productId=" + encodeURIComponent(productId)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        bounceBadge("cart-badge", data.cartCount);
+                        showLocalToast(data.cappedToStock
+                            ? `${data.productName} added — that's all the stock we have left!`
+                            : `${data.productName} added to cart!`);
+                    } else {
+                        alert("Error: " + data.message);
+                    }
+                })
+                .catch(err => console.error("AJAX error:", err));
+        });
+
+        grid.addEventListener("click", function (e) {
+            const btn = e.target.closest(".add-to-favorite-btn");
+            if (!btn) return;
+
+            const productId = btn.dataset.productId;
+
+            btn.classList.add("btn-pop");
+            setTimeout(() => btn.classList.remove("btn-pop"), 300);
+
+            fetch("/Home/AddFavoriteAjax", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "productId=" + encodeURIComponent(productId)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.querySelectorAll(`.add-to-favorite-btn[data-product-id="${productId}"]`)
+                            .forEach(matchingBtn => {
+                                matchingBtn.classList.remove("btn-outline-secondary");
+                                matchingBtn.classList.add("btn-danger", "in-favorite");
+                                matchingBtn.disabled = true;
+                                const label = matchingBtn.querySelector(".fav-btn-label");
+                                if (label) label.innerText = "Added to Favorites";
+                            });
+
+                        bounceBadge("favorite-badge", data.favoriteCount);
+                        showLocalToast(`${data.productName} added to favorites!`);
+                    } else {
+                        showLocalToast(data.message);
+                    }
+                })
+                .catch(err => console.error("AJAX error:", err));
+        });
+
+        // Initial load
+        loadProducts();
+    });
+</script>

@@ -1,0 +1,110 @@
+# ==========================================================================
+# .gitignore — RestaurantSystem-Final (FFG Restaurant)
+#
+# Goal: everything that is machine-specific, regenerable, or secret stays out
+# of the shared tree, so the project runs on any computer without picking up
+# another developer's user name or absolute paths.
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# Visual Studio / IDE state (regenerated per user on open)
+# --------------------------------------------------------------------------
+/.vs/
+**/.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.DotSettings.user
+
+# Visual Studio Code / Rider / other IDE folders
+.idea/
+*.iml
+
+# --------------------------------------------------------------------------
+# Build output
+# --------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Dd]ebugPublic/
+[Rr]eleases/
+build/
+bld/
+artifacts/
+*.binlog
+*.tlog
+*.cache
+*.pidb
+*.svclog
+
+# --------------------------------------------------------------------------
+# Test / coverage output (no test project today, kept for future use)
+# --------------------------------------------------------------------------
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+TestResults/
+
+# --------------------------------------------------------------------------
+# Local / machine-specific application configuration and secrets
+# --------------------------------------------------------------------------
+# Base appsettings.json IS tracked (it holds the portable |DataDirectory|
+# connection string and placeholders). The local override below is NOT,
+# because it holds real SMTP credentials for whoever runs the app.
+appsettings.Development.Local.json
+appsettings.Local.json
+appsettings.*.Local.json
+*.secrets.json
+secrets.json
+
+# --------------------------------------------------------------------------
+# Local SQL Server database.
+#
+# IMPORTANT: DB.mdf / DB_log.ldf are deliberately NOT ignored.
+# This assignment ships the seeded LocalDB database as the data carrier, so
+# it must travel with the project. If the team later moves to a seed script
+# (created from the migrations), uncomment the two lines below and delete the
+# files from the repository.
+# --------------------------------------------------------------------------
+# DB.mdf
+# DB_log.ldf
+
+# LocalDB / SQL Server stray artifacts
+*.mdf-journal
+*.ldf-journal
+
+# --------------------------------------------------------------------------
+# Node / package restore caches (this project has no npm, kept defensive)
+# --------------------------------------------------------------------------
+node_modules/
+.npm/
+*.tsbuildinfo
+
+# --------------------------------------------------------------------------
+# OS clutter
+# --------------------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+._*
+
+# --------------------------------------------------------------------------
+# Logs / temp
+# --------------------------------------------------------------------------
+*.log
+logs/
+*.tmp
+*.temp

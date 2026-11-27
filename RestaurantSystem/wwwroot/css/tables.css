@@ -1,0 +1,143 @@
+﻿/* ==========================================================================
+   FFG RESTAURANT — LIVE TABLE STATUS
+   ========================================================================== */
+
+.ffg-table-card {
+    position: relative;
+    height: 100%;
+    padding: 1.8rem 1.1rem 1.4rem;
+    border-radius: 22px;
+    border: 1px solid var(--ffg-line);
+    background: var(--ffg-surface);
+    box-shadow: var(--ffg-shadow-sm);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    overflow: hidden;
+}
+
+.ffg-table-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: var(--ffg-line);
+}
+
+.ffg-table-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--ffg-shadow);
+}
+
+.ffg-table-card.status-available {
+    border-color: rgba(31, 122, 85, 0.28);
+    background: linear-gradient(180deg, var(--ffg-surface) 55%, rgba(31, 122, 85, 0.07));
+}
+
+.ffg-table-card.status-available::before {
+    background: linear-gradient(90deg, var(--ffg-emerald-600), #52b98a);
+}
+
+.ffg-table-card.status-occupied {
+    border-color: rgba(166, 61, 61, 0.3);
+    background: linear-gradient(180deg, var(--ffg-surface) 55%, rgba(166, 61, 61, 0.07));
+}
+
+.ffg-table-card.status-occupied::before {
+    background: linear-gradient(90deg, #a63d3d, #d07a6f);
+}
+
+.ffg-table-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 0.9rem;
+    display: grid;
+    place-items: center;
+    border-radius: 20px;
+    font-size: 1.5rem;
+}
+
+.status-available .ffg-table-icon {
+    background: rgba(31, 122, 85, 0.12);
+    color: var(--ffg-emerald-700);
+}
+
+.status-occupied .ffg-table-icon {
+    background: rgba(166, 61, 61, 0.12);
+    color: var(--ffg-danger);
+}
+
+.ffg-table-name {
+    font-family: var(--ffg-font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--ffg-emerald-900);
+    margin: 0 0 0.55rem;
+}
+
+.ffg-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.ffg-status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.status-available .ffg-status-pill {
+    background: rgba(31, 122, 85, 0.12);
+    color: var(--ffg-success);
+}
+
+.status-occupied .ffg-status-pill {
+    background: rgba(166, 61, 61, 0.12);
+    color: var(--ffg-danger);
+}
+
+.ffg-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--ffg-muted);
+}
+
+.ffg-legend .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+.ffg-legend .dot.available {
+    background: var(--ffg-success);
+    box-shadow: 0 0 0 4px rgba(31, 122, 85, 0.15);
+}
+
+.ffg-legend .dot.occupied {
+    background: var(--ffg-danger);
+    box-shadow: 0 0 0 4px rgba(166, 61, 61, 0.15);
+}
+
+/* Legacy class hooks kept for compatibility */
+.table-card {
+    transition: all 0.4s ease;
+}
+
+.timer-badge {
+    font-size: 0.75rem;
+    background: rgba(0, 0, 0, 0.08);
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+}

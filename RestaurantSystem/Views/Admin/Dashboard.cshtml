@@ -1,0 +1,93 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Admin Dashboard";
+    ViewBag.ActiveMenu = "Dashboard";
+
+    decimal todayRevenue = ViewBag.TodayRevenue;
+    int activeOrders = ViewBag.ActiveOrders;
+    int occupiedCount = ViewBag.OccupiedCount;
+    int totalTables = ViewBag.TotalTables;
+    var tables = ViewBag.Tables as List<RestaurantSystem.Models.Table>;
+}
+
+<div class="admin-page-header">
+    <div>
+        <span class="ffg-eyebrow">Overview</span>
+        <h2>Admin Control Panel</h2>
+        <span class="text-muted small">Live snapshot of revenue, orders and floor activity.</span>
+    </div>
+    <span class="badge bg-success px-3 py-2 rounded-pill fw-bold"><i class="fa-solid fa-circle me-1" style="font-size: 0.5em;"></i>System Online</span>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="ffg-stat-card is-featured">
+            <div class="ffg-stat-icon"><i class="fa-solid fa-coins"></i></div>
+            <div>
+                <p class="ffg-stat-label">Today's Revenue</p>
+                <p class="ffg-stat-value">RM @todayRevenue.ToString("F2")</p>
+                <p class="ffg-stat-note">Non-cancelled orders placed today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="ffg-stat-card">
+            <div class="ffg-stat-icon"><i class="fa-solid fa-receipt"></i></div>
+            <div>
+                <p class="ffg-stat-label">Active Orders</p>
+                <p class="ffg-stat-value text-orange">@activeOrders</p>
+                <p class="ffg-stat-note">Currently pending</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="ffg-stat-card">
+            <div class="ffg-stat-icon"><i class="fa-solid fa-chair"></i></div>
+            <div>
+                <p class="ffg-stat-label">Occupied Tables</p>
+                <p class="ffg-stat-value">@occupiedCount <span class="ffg-muted" style="font-size: 0.55em; font-weight: 400;">/ @totalTables</span></p>
+                <p class="ffg-stat-note">Real-time dine-in tracking</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h4 class="mb-0">Live table status</h4>
+            <span class="text-muted small">Updated from the database as guests are seated.</span>
+        </div>
+        <div class="d-flex gap-3">
+            <span class="ffg-legend"><span class="dot available"></span>Available</span>
+            <span class="ffg-legend"><span class="dot occupied"></span>Occupied</span>
+        </div>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3">
+        @if (tables != null && tables.Any())
+        {
+            foreach (var table in tables)
+            {
+                <div class="col">
+                    <div class="table-card ffg-table-card @(table.IsOccupied ? "status-occupied" : "status-available")" style="padding: 1.15rem 0.75rem;">
+                        <div class="ffg-table-icon" style="width: 44px; height: 44px; border-radius: 14px; font-size: 1rem; margin-bottom: 0.6rem;">
+                            <i class="fa-solid fa-chair"></i>
+                        </div>
+                        <h5 class="ffg-table-name" style="font-size: 1.05rem; margin-bottom: 0.35rem;">@table.TableName</h5>
+                        <span class="ffg-status-pill" style="font-size: 0.6rem;">
+                            <span class="dot"></span>
+                            @(table.IsOccupied ? "Occupied" : "Available")
+                        </span>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12">
+                <p class="text-muted mb-0">No tables found in database.</p>
+            </div>
+        }
+    </div>
+</div>

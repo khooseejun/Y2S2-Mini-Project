@@ -1,0 +1,77 @@
+﻿@model RestaurantSystem.Models.User
+@{
+    ViewData["Title"] = "My Profile";
+    string avatarSrc = string.IsNullOrEmpty(Model.ProfilePhotoUrl) ? "/images/avatars/default-avatar.png" : Model.ProfilePhotoUrl;
+}
+
+<div class="container py-4">
+    <div class="ffg-page-head" style="max-width: 760px; margin-left: auto; margin-right: auto;">
+        <div>
+            <span class="ffg-eyebrow">Your account</span>
+            <h1>My profile</h1>
+            <p>Manage your details, photo and password.</p>
+        </div>
+    </div>
+
+    <div class="card ffg-profile-card">
+        <div class="ffg-profile-banner"></div>
+        <div class="ffg-profile-body text-center">
+            <img src="@avatarSrc" class="ffg-avatar" alt="Avatar" />
+
+            @if (TempData["Info"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show small mt-3" role="alert">
+                    <i class="fa-solid fa-circle-check me-1"></i> @TempData["Info"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+
+            <h3 class="mt-3 mb-1">@Model.FullName</h3>
+            <span class="ffg-tag">@((Model.Role == "ADMIN") ? "Administrator" : "Valued Member")</span>
+
+            <form asp-action="UploadPhoto" asp-controller="Account" method="post" enctype="multipart/form-data" class="mt-4 mx-auto" style="max-width: 380px;">
+                <div class="d-flex justify-content-center gap-2">
+                    <input type="file" name="photo" accept=".jpg,.jpeg,.png" class="form-control form-control-sm" />
+                    <button type="submit" class="btn btn-sm btn-outline-ffg flex-shrink-0">
+                        <i class="fa-solid fa-upload me-1"></i>Upload
+                    </button>
+                </div>
+                <p class="ffg-muted small mt-2 mb-0">JPG or PNG, max 2MB</p>
+            </form>
+
+            <hr class="my-4" />
+
+            <div class="ffg-profile-list">
+                <div class="row-line">
+                    <span class="k">Username</span>
+                    <span class="v">@Model.Username</span>
+                </div>
+                <div class="row-line">
+                    <span class="k">Email</span>
+                    <span class="v">@Model.Email</span>
+                </div>
+                <div class="row-line">
+                    <span class="k">Phone</span>
+                    <span class="v">@(string.IsNullOrEmpty(Model.PhoneNumber) ? "—" : Model.PhoneNumber)</span>
+                </div>
+                <div class="row-line">
+                    <span class="k">Address</span>
+                    <span class="v">@(string.IsNullOrEmpty(Model.Address) ? "—" : Model.Address)</span>
+                </div>
+                <div class="row-line" style="border-bottom: 0;">
+                    <span class="k">Status</span>
+                    <span class="v text-success"><i class="fa-solid fa-circle-check me-1"></i>Active</span>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 mt-4">
+                <a asp-action="EditProfile" asp-controller="Account" class="btn btn-outline-ffg fw-bold">
+                    <i class="fa-solid fa-pen me-2"></i>Edit Profile
+                </a>
+                <a asp-action="ResetPassword" asp-controller="Account" class="btn btn-orange fw-bold">
+                    <i class="fa-solid fa-key me-2"></i>Change Password
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

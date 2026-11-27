@@ -1,0 +1,89 @@
+﻿@model RestaurantSystem.Models.ViewModels.RegisterVM
+@{
+    ViewData["Title"] = "Register Member Account";
+}
+
+<div class="container ffg-auth-wrap">
+    <div class="ffg-auth-card">
+        <aside class="ffg-auth-aside">
+            <div>
+                <a class="ffg-brand" asp-controller="Home" asp-action="Index">
+                    <span class="ffg-brand-mark">FFG</span>
+                    <span class="ffg-brand-text">
+                        <span class="brand-name">FFG Restaurant</span>
+                        <span class="brand-sub">Emerald Kitchen</span>
+                    </span>
+                </a>
+            </div>
+
+            <div>
+                <span class="ffg-eyebrow" style="color: var(--ffg-gold-400);">Join the table</span>
+                <h2>Your seat is one step away.</h2>
+                <p>Create a free member account to order, bookmark dishes and keep your table history in one place.</p>
+
+                <ul>
+                    <li><i class="fa-solid fa-check"></i><span>Faster checkout with a saved address</span></li>
+                    <li><i class="fa-solid fa-check"></i><span>Favourites that follow you between visits</span></li>
+                    <li><i class="fa-solid fa-check"></i><span>Real-time order and table status</span></li>
+                </ul>
+            </div>
+
+            <div class="ffg-quote">"Every great meal starts with a simple hello."</div>
+        </aside>
+
+        <div class="ffg-auth-form">
+            <span class="ffg-eyebrow">New member</span>
+            <h1>Create account</h1>
+            <p class="sub">Register as a member to start ordering your favourite dishes.</p>
+
+            <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
+            <form asp-action="Register" method="post">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label asp-for="Username" class="form-label">Username</label>
+                        <input asp-for="Username" class="form-control" placeholder="Enter username" required />
+                        <span asp-validation-for="Username" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="FullName" class="form-label">Full Name</label>
+                        <input asp-for="FullName" class="form-control" placeholder="Enter your full name" required />
+                        <span asp-validation-for="FullName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="Email" class="form-label">Email Address</label>
+                        <input asp-for="Email" class="form-control" placeholder="example@email.com" required />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="PhoneNumber" class="form-label">Phone Number</label>
+                        <input asp-for="PhoneNumber" class="form-control" placeholder="e.g. +60123456789" />
+                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label asp-for="Password" class="form-label">Password</label>
+                        <input asp-for="Password" class="form-control" placeholder="At least 6 characters" required />
+                        <span asp-validation-for="Password" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-orange w-100 py-2 fw-bold mt-4">
+                    <i class="fa-solid fa-user-plus me-2"></i>Create Account
+                </button>
+            </form>
+
+            <div class="ffg-auth-footer">
+                Already have an account?
+                <a asp-action="Login">Login here</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

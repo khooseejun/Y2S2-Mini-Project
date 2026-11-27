@@ -1,0 +1,58 @@
+﻿@model IEnumerable<RestaurantSystem.Models.Table>
+@{
+    ViewData["Title"] = "Live Table Status";
+}
+<link rel="stylesheet" href="~/css/tables.css" asp-append-version="true" />
+
+<div class="container py-4">
+    <div class="ffg-page-head">
+        <div>
+            <span class="ffg-eyebrow">Dine-in</span>
+            <h1>Live table status</h1>
+            <p>Real-time availability, synced with our floor team and the database.</p>
+        </div>
+        <div class="d-flex gap-4">
+            <span class="ffg-legend"><span class="dot available"></span>Available</span>
+            <span class="ffg-legend"><span class="dot occupied"></span>Occupied</span>
+        </div>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-4" id="tables-container">
+        @if (Model != null && Model.Any())
+        {
+            foreach (var table in Model)
+            {
+                <div class="col">
+                    <div id="table-card-@table.TableId" class="table-card ffg-table-card @(table.IsOccupied ? "status-occupied" : "status-available")">
+                        <div class="ffg-table-icon">
+                            <i class="fa-solid fa-chair"></i>
+                        </div>
+                        <h4 class="ffg-table-name">@table.TableName</h4>
+
+                        <span class="ffg-status-pill">
+                            <span class="dot"></span>
+                            @(table.IsOccupied ? "Occupied" : "Available")
+                        </span>
+
+                        @if (table.IsOccupied && User.Identity?.IsAuthenticated == true && User.IsInRole("ADMIN"))
+                        {
+                            <form asp-action="AdminFreeTable" asp-controller="Home" method="post" class="mt-3"
+                                  onsubmit="return confirm('Mark @table.TableName as available? Only do this once the table has actually been cleared.');">
+                                <input type="hidden" name="tableId" value="@table.TableId" />
+                                <button type="submit" class="btn btn-sm btn-outline-ffg w-100">
+                                    <i class="fa-solid fa-door-open me-1"></i>Free Table
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12 text-center py-5">
+                <p class="ffg-muted fs-5 mb-0">No tables found in database.</p>
+            </div>
+        }
+    </div>
+</div>

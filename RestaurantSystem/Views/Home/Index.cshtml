@@ -1,0 +1,188 @@
+﻿@model List<RestaurantSystem.Models.ViewModels.TopSellingItemVM>
+@{
+    ViewData["Title"] = "Home Page";
+}
+<link rel="stylesheet" href="~/css/index.css" asp-append-version="true" />
+
+<!-- ===================== Hero ===================== -->
+<section class="ffg-hero my-4">
+    <div class="ffg-hero-inner">
+        <div class="ffg-hero-content">
+            <span class="ffg-eyebrow">Welcome to FFG</span>
+            <h1 class="ffg-hero-title">A modern bistro,<br /><em>crafted daily.</em></h1>
+            <p class="ffg-hero-lead">
+                Seasonal plates, slow-cooked classics and handcrafted drinks — served in a warm
+                emerald dining room. Pick a table, browse the menu and order in a few taps.
+            </p>
+
+            <div class="ffg-hero-actions">
+                <a asp-controller="Home" asp-action="Menu" class="btn btn-orange btn-lg rounded-pill px-4">
+                    <i class="fa-solid fa-utensils me-2"></i> Explore the Menu
+                </a>
+                <a asp-controller="Home" asp-action="Tables" class="btn btn-ffg-ghost btn-lg rounded-pill px-4">
+                    <i class="fa-solid fa-chair me-2"></i> Check Tables
+                </a>
+                @if (User.Identity?.IsAuthenticated != true)
+                {
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-link text-white text-decoration-none align-self-center ms-1">
+                        Sign in <i class="fa-solid fa-arrow-right ms-1"></i>
+                    </a>
+                }
+            </div>
+
+            <div class="ffg-hero-stats">
+                <div class="ffg-hero-stat">
+                    <span class="value">4</span>
+                    <span class="label">Menu Collections</span>
+                </div>
+                <div class="ffg-hero-stat">
+                    <span class="value">Live</span>
+                    <span class="label">Table Status</span>
+                </div>
+                <div class="ffg-hero-stat">
+                    <span class="value">Dine&nbsp;/&nbsp;Take</span>
+                    <span class="label">Your Way</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================== Signature picks ===================== -->
+<section class="ffg-section">
+    <div class="ffg-section-head">
+        <div>
+            <span class="ffg-eyebrow">Chef's Selection</span>
+            <h2>@(Model != null && Model.Any() ? "Our top-selling picks" : "A taste of what's waiting")</h2>
+            <p>The dishes our guests keep coming back for — updated from real orders in our kitchen.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Menu" class="ffg-section-link">
+            View full menu <i class="fa-solid fa-arrow-right-long"></i>
+        </a>
+    </div>
+
+    <div id="foodBannerCarousel" class="carousel slide ffg-carousel" data-bs-ride="carousel" data-bs-interval="7000">
+        <div class="carousel-inner carousel-banner-inner">
+
+            @if (Model != null && Model.Any())
+            {
+                // Real top-selling products, ranked by total quantity sold
+                for (int i = 0; i < Model.Count; i++)
+                {
+                    var item = Model[i];
+                    <div class="carousel-item @(i == 0 ? "active" : "") h-100">
+                        <div class="ffg-slide h-100" style="background-image: url('@item.ImageUrl');">
+                            <div class="ffg-slide-body">
+                                <span class="ffg-tag">@item.CategoryName</span>
+                                <h3>@item.ProductName</h3>
+                                <p><i class="fa-solid fa-fire me-1"></i>@item.TotalSold sold and counting</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <!-- No sales data yet — show default featured picks instead -->
+                <div class="carousel-item active h-100">
+                    <div class="ffg-slide h-100" style="background-image: url('/images/burger.jpg');">
+                        <div class="ffg-slide-body">
+                            <span class="ffg-tag">Main Course</span>
+                            <h3>Premium Classic Beef Burger</h3>
+                            <p><i class="fa-solid fa-star me-1"></i>A house favourite, stacked fresh to order</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-item h-100">
+                    <div class="ffg-slide h-100" style="background-image: url('/images/fries.jpg');">
+                        <div class="ffg-slide-body">
+                            <span class="ffg-tag">Snacks</span>
+                            <h3>Golden Crispy French Fries</h3>
+                            <p><i class="fa-solid fa-star me-1"></i>Hand-cut and twice fried for extra crunch</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-item h-100">
+                    <div class="ffg-slide h-100" style="background-image: url('/images/milktea.jpg');">
+                        <div class="ffg-slide-body">
+                            <span class="ffg-tag">Drinks</span>
+                            <h3>Signature Pearl Milk Tea</h3>
+                            <p><i class="fa-solid fa-star me-1"></i>Brewed daily with house-made pearls</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="carousel-item h-100">
+                    <div class="ffg-slide h-100" style="background-image: url('/images/lavacake.jpg');">
+                        <div class="ffg-slide-body">
+                            <span class="ffg-tag">Desserts</span>
+                            <h3>Decadent Chocolate Lava Cake</h3>
+                            <p><i class="fa-solid fa-star me-1"></i>Warm centre, dark chocolate, vanilla cream</p>
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+
+        <button class="carousel-control-prev" type="button" data-bs-target="#foodBannerCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#foodBannerCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+        </button>
+    </div>
+</section>
+
+<!-- ===================== Why FFG ===================== -->
+<section class="ffg-section">
+    <div class="ffg-section-head">
+        <div>
+            <span class="ffg-eyebrow">The FFG Experience</span>
+            <h2>Simple, warm, thoughtfully done</h2>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="ffg-feature">
+                <div class="ffg-feature-icon"><i class="fa-solid fa-chair"></i></div>
+                <h3>Live table service</h3>
+                <p>See which tables are free in real time, choose one at checkout, and check out when you're done — no waiting at the counter.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="ffg-feature">
+                <div class="ffg-feature-icon"><i class="fa-solid fa-seedling"></i></div>
+                <h3>Fresh from the kitchen</h3>
+                <p>Every plate is prepared to order with seasonal produce and house-made sauces. Stock counts update as dishes sell out.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="ffg-feature">
+                <div class="ffg-feature-icon"><i class="fa-solid fa-heart"></i></div>
+                <h3>Save your favourites</h3>
+                <p>Bookmark the dishes you love, reorder with one tap, and keep a full history of every meal you've shared with us.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section class="ffg-cta-band">
+    <div>
+        <span class="ffg-eyebrow" style="color: var(--ffg-gold-400);">Ready when you are</span>
+        <h2>Find a table, or take it home.</h2>
+        <p>Dine in with live table tracking or order takeaway in under a minute. Your next favourite dish is one tap away.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-controller="Home" asp-action="Tables" class="btn btn-ffg-ghost rounded-pill px-4">View Tables</a>
+        <a asp-controller="Home" asp-action="Menu" class="btn btn-orange rounded-pill px-4">
+            <i class="fa-solid fa-basket-shopping me-2"></i> Start Ordering
+        </a>
+    </div>
+</section>

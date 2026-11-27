@@ -1,0 +1,207 @@
+﻿@model List<RestaurantSystem.Models.Product>
+
+@{
+    ViewData["Title"] = "My Favorites";
+}
+<link rel="stylesheet" href="~/css/menu.css" asp-append-version="true" />
+
+<div class="container py-4">
+    <div class="ffg-page-head">
+        <div>
+            <span class="ffg-eyebrow">Saved for later</span>
+            <h1 class="d-flex align-items-center gap-3">
+                <i class="fa-solid fa-heart" style="color: var(--ffg-danger); font-size: 0.8em;"></i>
+                My favorites
+                <span class="ffg-tag" id="favorite-item-count">@(Model?.Count ?? 0) Items</span>
+            </h1>
+            <p>Your bookmarked dishes, ready to move straight into your cart.</p>
+        </div>
+
+        <button type="button" id="move-all-btn" class="btn btn-orange fw-bold" style="@(Model == null || !Model.Any() ? "display:none;" : "")">
+            <i class="fa-solid fa-cart-plus me-1"></i> Move All to Cart
+        </button>
+    </div>
+
+    <div id="favorites-empty-state" class="card text-center p-5" style="@(Model != null && Model.Any() ? "display:none;" : "")">
+        <div class="card-body py-5">
+            <div class="ffg-feature-icon mx-auto" style="width: 68px; height: 68px; font-size: 1.6rem;">
+                <i class="fa-regular fa-heart"></i>
+            </div>
+            <h3 class="mt-3">You have no favorites yet</h3>
+            <p class="ffg-muted">Tap "Add to Favorite" on any dish in the menu to save it here.</p>
+            <a asp-controller="Home" asp-action="Menu" class="btn btn-orange px-4 mt-2 fw-bold">
+                <i class="fa-solid fa-utensils me-2"></i>Browse the Menu
+            </a>
+        </div>
+    </div>
+
+    <div id="favorites-list" class="row g-4">
+        @if (Model != null)
+        {
+            @foreach (var item in Model)
+            {
+                <div class="col-sm-6 col-lg-4 favorite-card" id="favorite-card-@item.ProductId" data-product-id="@item.ProductId">
+                    <article class="ffg-product-card">
+                        <a asp-controller="Home" asp-action="ProductDetail" asp-route-id="@item.ProductId" class="ffg-product-media">
+                            <img src="@item.ImageUrl" alt="@item.ProductName">
+                        </a>
+                        <div class="ffg-product-body">
+                            <a asp-controller="Home" asp-action="ProductDetail" asp-route-id="@item.ProductId" class="ffg-product-title">@item.ProductName</a>
+                            <p class="ffg-product-desc">@item.Description</p>
+
+                            <div class="ffg-product-foot">
+                                <span class="ffg-product-price"><span class="currency">RM</span>@item.Price.ToString("F2")</span>
+
+                                <div class="ffg-product-actions d-flex gap-2">
+                                    <button type="button" class="btn btn-orange btn-sm w-100 fw-bold move-to-cart-btn" data-product-id="@item.ProductId">
+                                        <i class="fa-solid fa-cart-plus me-1"></i>Move to Cart
+                                    </button>
+
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 remove-favorite-btn"
+                                            data-product-id="@item.ProductId"
+                                            title="Remove from favorites"
+                                            style="width: 38px; height: 38px; padding: 0;">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            }
+        }
+    </div>
+
+    <a asp-controller="Home" asp-action="Menu" class="btn btn-outline-secondary mt-4">
+        <i class="fa-solid fa-arrow-left me-2"></i>Browse More Dishes
+    </a>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        function showLocalToast(message) {
+            const oldToast = document.querySelector(".local-toast");
+            if (oldToast) oldToast.remove();
+
+            const toast = document.createElement("div");
+            toast.className = "local-toast";
+            toast.innerText = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.classList.add("show"), 50);
+            setTimeout(() => {
+                toast.classList.remove("show");
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function updateCartBadge(cartCount) {
+            const badge = document.getElementById("cart-badge");
+            if (badge) {
+                badge.innerText = cartCount;
+                badge.classList.remove("badge-bounce");
+                void badge.offsetWidth;
+                badge.classList.add("badge-bounce");
+            }
+        }
+
+        function updateFavoriteBadge(favoriteCount) {
+            const badge = document.getElementById("favorite-badge");
+            if (badge) {
+                badge.innerText = favoriteCount;
+                badge.classList.remove("badge-bounce");
+                void badge.offsetWidth;
+                badge.classList.add("badge-bounce");
+            }
+        }
+
+        function updatePageItemCount() {
+            const remaining = document.querySelectorAll(".favorite-card").length;
+            const countBadge = document.getElementById("favorite-item-count");
+            if (countBadge) countBadge.innerText = remaining + " Items";
+
+            if (remaining === 0) {
+                document.getElementById("favorites-empty-state").style.display = "";
+                document.getElementById("move-all-btn").style.display = "none";
+            }
+        }
+
+        document.querySelectorAll(".move-to-cart-btn").forEach(btn => {
+            btn.addEventListener("click", function () {
+                const productId = this.dataset.productId;
+
+                this.classList.add("btn-pop");
+                setTimeout(() => this.classList.remove("btn-pop"), 300);
+
+                fetch("/Home/TransferFavoriteToCart", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "productId=" + encodeURIComponent(productId)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateCartBadge(data.cartCount);
+                            showLocalToast(data.message);
+                        } else {
+                            showLocalToast(data.message);
+                        }
+                    })
+                    .catch(err => console.error("AJAX error:", err));
+            });
+        });
+
+        const moveAllBtn = document.getElementById("move-all-btn");
+        if (moveAllBtn) {
+            moveAllBtn.addEventListener("click", function () {
+                this.classList.add("btn-pop");
+                setTimeout(() => this.classList.remove("btn-pop"), 300);
+
+                fetch("/Home/TransferAllFavoritesToCart", { method: "POST" })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updateCartBadge(data.cartCount);
+                            showLocalToast(data.message);
+                        } else {
+                            showLocalToast(data.message);
+                        }
+                    })
+                    .catch(err => console.error("AJAX error:", err));
+            });
+        }
+
+        document.querySelectorAll(".remove-favorite-btn").forEach(btn => {
+            btn.addEventListener("click", function () {
+                if (!confirm("Remove this item from your favorites?")) return;
+
+                const productId = this.dataset.productId;
+
+                fetch("/Home/RemoveFavoriteAjax", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "productId=" + encodeURIComponent(productId)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const card = document.getElementById("favorite-card-" + productId);
+                            if (card) {
+                                card.classList.add("removing");
+                                setTimeout(() => {
+                                    card.remove();
+                                    updatePageItemCount();
+                                }, 300);
+                            }
+                            updateFavoriteBadge(data.favoriteCount);
+                            showLocalToast(data.message);
+                        } else {
+                            showLocalToast(data.message);
+                        }
+                    })
+                    .catch(err => console.error("AJAX error:", err));
+            });
+        });
+    });
+</script>

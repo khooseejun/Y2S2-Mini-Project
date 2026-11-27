@@ -1,0 +1,40 @@
+@{
+    Layout = "~/Views/Admin/_AdminLayout.cshtml";
+    ViewData["Title"] = "Reports";
+    ViewBag.ActiveMenu = "Report";
+}
+
+<div class="admin-page-header">
+    <div>
+        <span class="ffg-eyebrow">Insights</span>
+        <h2>Reports</h2>
+        <span class="text-muted small">Revenue, order volume and best-selling dishes.</span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <a asp-controller="Admin" asp-action="Daily" class="ffg-report-tile">
+            <div class="tile-icon"><i class="fa-solid fa-calendar-day"></i></div>
+            <h5>Daily Sales Report</h5>
+            <p>Revenue, orders and items sold for a single day.</p>
+            <span class="ffg-section-link mt-3">Open report <i class="fa-solid fa-arrow-right-long"></i></span>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a asp-controller="Admin" asp-action="Monthly" class="ffg-report-tile">
+            <div class="tile-icon"><i class="fa-solid fa-calendar-days"></i></div>
+            <h5>Monthly Sales Report</h5>
+            <p>Day-by-day breakdown plus top items for the month.</p>
+            <span class="ffg-section-link mt-3">Open report <i class="fa-solid fa-arrow-right-long"></i></span>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a asp-controller="Admin" asp-action="TopSelling" class="ffg-report-tile">
+            <div class="tile-icon"><i class="fa-solid fa-fire"></i></div>
+            <h5>Top-Selling Foods</h5>
+            <p>Best-selling dishes across any custom date range.</p>
+            <span class="ffg-section-link mt-3">Open report <i class="fa-solid fa-arrow-right-long"></i></span>
+        </a>
+    </div>
+</div>

@@ -1,0 +1,58 @@
+﻿@model RestaurantSystem.Models.ViewModels.EditProfileVM
+@{
+    ViewData["Title"] = "Edit Profile";
+}
+
+<div class="container py-4">
+    <div class="ffg-page-head" style="max-width: 680px; margin-left: auto; margin-right: auto;">
+        <div>
+            <span class="ffg-eyebrow">Your account</span>
+            <h1>Edit profile</h1>
+            <p>Keep your contact details up to date for faster checkout.</p>
+        </div>
+    </div>
+
+    <div class="card mx-auto" style="max-width: 680px;">
+        <div class="card-body p-4 p-md-5">
+            <form asp-action="EditProfile" asp-controller="Account" method="post">
+                <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                <div class="mb-3">
+                    <label asp-for="FullName" class="form-label">Full Name</label>
+                    <input asp-for="FullName" class="form-control" />
+                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label">Email</label>
+                    <input asp-for="Email" class="form-control" />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="PhoneNumber" class="form-label">Phone Number</label>
+                    <input asp-for="PhoneNumber" class="form-control" />
+                    <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="Address" class="form-label">Saved Address</label>
+                    <textarea asp-for="Address" class="form-control" rows="3" placeholder="Used for Takeaway orders"></textarea>
+                    <span asp-validation-for="Address" class="text-danger small"></span>
+                    <div class="form-text">Auto-filled at Checkout whenever you choose Takeaway.</div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-orange flex-grow-1 fw-bold">Save Changes</button>
+                    <a asp-action="Profile" asp-controller="Account" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

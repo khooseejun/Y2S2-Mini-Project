@@ -1,0 +1,353 @@
+/* ==========================================================================
+   FFG RESTAURANT — ADMIN PANEL
+   ========================================================================== */
+
+/* ---------- Left sidebar ---------- */
+.admin-sidebar {
+    background:
+        radial-gradient(300px 180px at 100% 0%, rgba(201, 162, 39, 0.22), transparent 65%),
+        linear-gradient(165deg, var(--ffg-emerald-900), var(--ffg-emerald-950));
+    border-radius: 22px;
+    padding: 1.35rem 1rem;
+    height: fit-content;
+    position: sticky;
+    top: 110px;
+    border: 1px solid rgba(201, 162, 39, 0.18);
+    box-shadow: 0 28px 50px -38px rgba(8, 37, 27, 0.95);
+}
+
+.admin-sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: #ffffff;
+    font-family: var(--ffg-font-display);
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: 0.02em;
+    padding: 0.25rem 0.6rem 1.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.admin-sidebar-brand span {
+    color: var(--ffg-gold-400);
+}
+
+.admin-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: rgba(255, 255, 255, 0.72);
+    text-decoration: none;
+    padding: 0.65rem 0.9rem;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-size: 0.92rem;
+}
+
+.admin-nav-link i {
+    width: 1.15rem;
+    text-align: center;
+    font-size: 0.95rem;
+    opacity: 0.9;
+}
+
+.admin-nav-link:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.admin-nav-link.active {
+    background: linear-gradient(135deg, var(--ffg-gold-400), var(--ffg-gold-500));
+    color: var(--ffg-emerald-950);
+    font-weight: 700;
+    box-shadow: 0 12px 22px -16px rgba(201, 162, 39, 0.95);
+}
+
+/* ---------- Sidebar submenu ---------- */
+.admin-nav-toggle {
+    cursor: pointer;
+}
+
+.admin-nav-toggle .submenu-arrow {
+    transition: transform 0.25s ease;
+    font-size: 0.7rem;
+}
+
+.admin-nav-toggle[aria-expanded="true"] .submenu-arrow {
+    transform: rotate(180deg);
+}
+
+.admin-nav-submenu {
+    padding-left: 1rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    margin-left: 1.4rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.admin-nav-submenu .admin-nav-link {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+}
+
+/* ---------- Admin buttons ---------- */
+.btn-admin {
+    background-color: var(--ffg-emerald-800);
+    color: #ffffff;
+    border: none;
+}
+
+.btn-admin:hover {
+    background-color: var(--ffg-emerald-700);
+    color: #ffffff;
+}
+
+.btn-outline-admin {
+    background-color: transparent;
+    color: var(--ffg-emerald-800);
+    border: 1px solid #cfc6b5;
+}
+
+.btn-outline-admin:hover,
+.btn-outline-admin.active {
+    background-color: var(--ffg-emerald-800);
+    color: #ffffff;
+    border-color: var(--ffg-emerald-800);
+}
+
+/* ---------- Admin tables ---------- */
+.admin-table-card {
+    background-color: var(--ffg-surface);
+    border: 1px solid var(--ffg-line);
+    border-radius: 20px;
+    box-shadow: var(--ffg-shadow-sm);
+    overflow: hidden;
+}
+
+.admin-table-card thead th {
+    background: linear-gradient(120deg, var(--ffg-emerald-900), var(--ffg-emerald-950));
+    color: rgba(255, 255, 255, 0.92);
+    font-family: var(--ffg-font-body);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border: none;
+    padding: 0.95rem 1rem;
+    white-space: nowrap;
+}
+
+.admin-table-card tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.admin-table-card tbody tr:hover {
+    background-color: rgba(201, 162, 39, 0.06);
+}
+
+.admin-table-card tbody td {
+    vertical-align: middle;
+    padding: 0.85rem 1rem;
+    border-color: var(--ffg-line);
+}
+
+.admin-table-card .table-actions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+/* ---------- Search box ---------- */
+.admin-search {
+    border-radius: 999px;
+    border: 1px solid var(--ffg-line);
+    padding-left: 1.1rem;
+    background: var(--ffg-surface);
+    min-width: 240px;
+}
+
+.admin-search:focus {
+    border-color: var(--ffg-gold-500);
+    box-shadow: 0 0 0 0.18rem rgba(201, 162, 39, 0.22);
+}
+
+/* ---------- Page header ---------- */
+.admin-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--ffg-line);
+}
+
+.admin-page-header h2 {
+    font-weight: 700;
+    margin: 0;
+    color: var(--ffg-emerald-900);
+    font-size: 2rem;
+}
+
+.admin-page-header .text-muted {
+    color: var(--ffg-muted) !important;
+}
+
+/* ---------- Dashboard stat cards ---------- */
+.ffg-stat-card {
+    position: relative;
+    height: 100%;
+    border-radius: 22px;
+    padding: 1.6rem;
+    border: 1px solid var(--ffg-line);
+    background: var(--ffg-surface);
+    box-shadow: var(--ffg-shadow-sm);
+    display: flex;
+    gap: 1.1rem;
+    align-items: flex-start;
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ffg-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--ffg-shadow);
+}
+
+.ffg-stat-card::after {
+    content: "";
+    position: absolute;
+    right: -40px;
+    top: -40px;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: rgba(201, 162, 39, 0.09);
+}
+
+.ffg-stat-card.is-featured {
+    background:
+        radial-gradient(280px 160px at 100% 0%, rgba(201, 162, 39, 0.32), transparent 68%),
+        linear-gradient(140deg, var(--ffg-emerald-900), var(--ffg-emerald-950));
+    border-color: rgba(201, 162, 39, 0.3);
+    color: #ffffff;
+}
+
+.ffg-stat-icon {
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    font-size: 1.2rem;
+    background: var(--ffg-cream-alt);
+    color: var(--ffg-emerald-800);
+    position: relative;
+    z-index: 1;
+}
+
+.ffg-stat-card.is-featured .ffg-stat-icon {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--ffg-gold-400);
+}
+
+.ffg-stat-label {
+    font-family: var(--ffg-font-body);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ffg-muted);
+    margin: 0 0 0.35rem;
+}
+
+.ffg-stat-card.is-featured .ffg-stat-label {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.ffg-stat-value {
+    font-family: var(--ffg-font-display);
+    font-size: 2.05rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ffg-emerald-900);
+    margin: 0;
+}
+
+.ffg-stat-card.is-featured .ffg-stat-value {
+    color: #ffffff;
+}
+
+.ffg-stat-note {
+    font-size: 0.78rem;
+    color: var(--ffg-muted);
+    margin: 0.45rem 0 0;
+}
+
+.ffg-stat-card.is-featured .ffg-stat-note {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* ---------- Bulk action bar ---------- */
+.bulk-action-bar {
+    background: linear-gradient(120deg, var(--ffg-emerald-900), var(--ffg-emerald-950));
+    color: #ffffff;
+    padding: 0.75rem 1.25rem;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+}
+
+/* ---------- Report tiles ---------- */
+.ffg-report-tile {
+    display: block;
+    height: 100%;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    text-decoration: none !important;
+    border-radius: 20px;
+    border: 1px solid var(--ffg-line);
+    background: var(--ffg-surface);
+    box-shadow: var(--ffg-shadow-sm);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.ffg-report-tile:hover {
+    transform: translateY(-4px);
+    border-color: rgba(201, 162, 39, 0.55);
+    box-shadow: var(--ffg-shadow);
+}
+
+.ffg-report-tile .tile-icon {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 1rem;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background: linear-gradient(150deg, var(--ffg-emerald-700), var(--ffg-emerald-950));
+    color: var(--ffg-gold-400);
+    font-size: 1.3rem;
+}
+
+.ffg-report-tile h5 {
+    color: var(--ffg-emerald-900);
+    margin-bottom: 0.4rem;
+}
+
+.ffg-report-tile p {
+    color: var(--ffg-muted);
+    font-size: 0.88rem;
+    margin: 0;
+}
+
+@media (max-width: 991.98px) {
+    .admin-sidebar {
+        position: static;
+    }
+}

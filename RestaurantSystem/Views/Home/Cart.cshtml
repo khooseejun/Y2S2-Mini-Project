@@ -1,0 +1,154 @@
+﻿@model List<RestaurantSystem.Models.ViewModels.CartItemVM>
+
+@{
+    ViewData["Title"] = "My Ordering Cart";
+    decimal grandTotal = Model.Sum(item => item.Total);
+}
+
+<div class="container py-4">
+    <div class="ffg-page-head">
+        <div>
+            <span class="ffg-eyebrow">Your Order</span>
+            <h1>My cart</h1>
+            <p>@Model.Sum(i => i.Quantity) item@(Model.Sum(i => i.Quantity) == 1 ? "" : "s") ready for checkout.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Menu" class="btn btn-outline-ffg btn-sm">
+            <i class="fa-solid fa-arrow-left me-1"></i>Continue browsing
+        </a>
+    </div>
+
+    @if (TempData["Info"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fa-solid fa-circle-check me-2"></i>@TempData["Info"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (Model == null || !Model.Any())
+    {
+        <div class="card text-center p-5">
+            <div class="card-body py-5">
+                <div class="ffg-feature-icon mx-auto" style="width: 68px; height: 68px; font-size: 1.6rem;">
+                    <i class="fa-solid fa-basket-shopping"></i>
+                </div>
+                <h3 class="mt-3">Your cart is empty</h3>
+                <p class="ffg-muted">You haven't added any delicious dishes yet.</p>
+                <a asp-controller="Home" asp-action="Menu" class="btn btn-orange px-4 mt-2 fw-bold">
+                    <i class="fa-solid fa-utensils me-2"></i>Browse the Menu
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card overflow-hidden">
+                    <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Order items</h5>
+                        <span class="ffg-tag">@Model.Count line@(Model.Count == 1 ? "" : "s")</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="ps-4">Dish</th>
+                                    <th class="text-center">Price</th>
+                                    <th class="text-center" style="width: 160px;">Quantity</th>
+                                    <th class="text-center">Subtotal</th>
+                                    <th class="text-end pe-4" style="width: 90px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model)
+                                {
+                                    <tr>
+                                        <td class="ps-4">
+                                            <span class="fw-semibold">@item.ProductName</span>
+                                        </td>
+
+                                        <td class="text-center ffg-muted">
+                                            RM @item.Price.ToString("F2")
+                                        </td>
+
+                                        <td class="text-center">
+                                            <form asp-action="Update" asp-controller="Home" method="post" class="d-flex align-items-center justify-content-center">
+                                                <input type="hidden" name="productId" value="@item.ProductId" />
+
+                                                <div class="input-group input-group-sm rounded-pill overflow-hidden" style="max-width: 126px;">
+                                                    <button type="submit" name="quantity" value="@(item.Quantity - 1)" class="btn btn-outline-secondary" aria-label="Decrease quantity">
+                                                        <i class="fa-solid fa-minus"></i>
+                                                    </button>
+
+                                                    <input type="text" readonly class="form-control text-center bg-white border-start-0 border-end-0" value="@item.Quantity" />
+
+                                                    <button type="submit" name="quantity" value="@(item.Quantity + 1)" class="btn btn-outline-secondary" aria-label="Increase quantity">
+                                                        <i class="fa-solid fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </td>
+
+                                        <td class="text-center fw-bold" style="color: var(--ffg-emerald-800);">
+                                            RM @item.Total.ToString("F2")
+                                        </td>
+
+                                        <td class="text-end pe-4">
+                                            <form asp-action="Remove" asp-controller="Home" method="post" onsubmit="return confirm('Are you sure you want to remove this item?');">
+                                                <input type="hidden" name="productId" value="@item.ProductId" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle" aria-label="Remove item" style="width: 36px; height: 36px; padding: 0;">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <a asp-controller="Home" asp-action="Menu" class="btn btn-outline-secondary mt-3">
+                    <i class="fa-solid fa-plus me-1"></i>Add more dishes
+                </a>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card position-sticky" style="top: 120px;">
+                    <div class="card-header py-3 px-4">
+                        <h5 class="mb-0">Order summary</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="ffg-muted">Items</span>
+                            <span class="fw-semibold">@Model.Sum(i => i.Quantity)</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="ffg-muted">Subtotal</span>
+                            <span class="fw-semibold">RM @grandTotal.ToString("F2")</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="ffg-muted">Service</span>
+                            <span class="fw-semibold text-success">Included</span>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between align-items-baseline mb-4">
+                            <span class="fs-5 fw-bold">Grand total</span>
+                            <span class="ffg-price-lg" style="font-size: 1.9rem;">RM @grandTotal.ToString("F2")</span>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <a asp-controller="Order" asp-action="Checkout" class="btn btn-orange btn-lg fw-bold">
+                                <i class="fa-solid fa-credit-card me-2"></i>Proceed to Checkout
+                            </a>
+                            <a asp-controller="Home" asp-action="Favorites" class="btn btn-outline-secondary">
+                                <i class="fa-solid fa-heart me-1"></i>View Favorites
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

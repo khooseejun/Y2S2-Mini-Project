@@ -1,0 +1,305 @@
+﻿@using System.Text.Json
+@using Microsoft.AspNetCore.Http
+@using RestaurantSystem.Models
+@using static RestaurantSystem.Models.ViewModels
+@inject IHttpContextAccessor HttpContextAccessor
+@inject RestaurantDbContext DbContext
+
+@{
+    // 1. Cart count: still read from Session (cart is intentionally temporary)
+    var session = HttpContextAccessor.HttpContext?.Session;
+    int layoutCartCount = 0;
+
+    if (session != null)
+    {
+        // NOTE: this key must match the constant used in HomeController's Cart actions
+        var cartData = session.GetString("OrderingCart");
+        if (!string.IsNullOrEmpty(cartData))
+        {
+            var cart = JsonSerializer.Deserialize<List<CartItemVM>>(cartData);
+            if (cart != null)
+            {
+                layoutCartCount = cart.Sum(item => item.Quantity);
+            }
+        }
+    }
+
+    // 2. Favorite count: read directly from the database (persisted per account)
+    int layoutFavoriteCount = 0;
+    if (User.Identity?.IsAuthenticated == true)
+    {
+        var currentUsername = User.Identity?.Name ?? "";
+        var currentUser = DbContext.Users.FirstOrDefault(u => u.Username == currentUsername);
+        if (currentUser != null)
+        {
+            layoutFavoriteCount = DbContext.Favorites.Count(f => f.UserId == currentUser.UserId);
+        }
+    }
+
+    // 3. Active nav highlighting
+    string currentController = (ViewContext.RouteData.Values["controller"] as string ?? "").ToLowerInvariant();
+    string currentAction = (ViewContext.RouteData.Values["action"] as string ?? "").ToLowerInvariant();
+
+    string NavLinkClass(string controller, params string[] actions)
+    {
+        bool match = currentController == controller.ToLowerInvariant()
+                     && (actions.Length == 0 || actions.Any(a => a.Equals(currentAction, StringComparison.OrdinalIgnoreCase)));
+        return match ? "nav-link active" : "nav-link";
+    }
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - FFG Restaurant</title>
+
+    <!-- Apply the saved theme BEFORE anything renders, to avoid a light-mode flash -->
+    <script>
+        (function () {
+            var savedTheme = localStorage.getItem("ffg-theme") || localStorage.getItem("bite-theme");
+            if (savedTheme === "dark") {
+                document.documentElement.classList.add("dark-mode");
+            }
+        })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@fortawesome/fontawesome-free@6.7.2/css/all.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/dark-mode.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="ffg-header">
+        <div class="ffg-announce d-none d-md-block">
+            <div class="container-fluid px-4 d-flex flex-wrap justify-content-between align-items-center">
+                <span><i class="fa-solid fa-clock me-2"></i>Open daily · 11:00 AM – 10:00 PM</span>
+                <span>
+                    <i class="fa-solid fa-location-dot me-1"></i>Kuala Lumpur
+                    <span class="dot"></span>
+                    <a href="tel:+60312345678"><i class="fa-solid fa-phone me-1"></i>+60 3-1234 5678</a>
+                </span>
+            </div>
+        </div>
+
+        <nav class="navbar navbar-expand-lg ffg-navbar">
+            <div class="container-fluid px-4">
+                <a class="ffg-brand" asp-controller="Home" asp-action="Index">
+                    <span class="ffg-brand-mark">FFG</span>
+                    <span class="ffg-brand-text">
+                        <span class="brand-name">FFG Restaurant</span>
+                        <span class="brand-sub">Emerald Kitchen</span>
+                    </span>
+                </a>
+
+                <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#ffgNavbar"
+                        aria-controls="ffgNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+
+                <div class="collapse navbar-collapse" id="ffgNavbar">
+                    <ul class="navbar-nav ffg-nav flex-grow-1 mt-3 mt-lg-0 ms-lg-4">
+                        <li class="nav-item">
+                            <a class="@NavLinkClass("Home", "Index")" asp-controller="Home" asp-action="Index">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="@NavLinkClass("Home", "Menu", "ProductDetail")" asp-controller="Home" asp-action="Menu">Our Menu</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="@NavLinkClass("Home", "Tables")" asp-controller="Home" asp-action="Tables">Tables</a>
+                        </li>
+                    </ul>
+
+                    <div class="d-flex flex-wrap align-items-center gap-2 gap-lg-3 mt-3 mt-lg-0">
+                        @if (User.Identity?.IsAuthenticated == true && User.IsInRole("ADMIN"))
+                        {
+                            <a asp-controller="Admin" asp-action="Dashboard" class="btn btn-ffg btn-sm px-3">
+                                <i class="fa-solid fa-gauge-high me-1"></i>Admin Panel
+                            </a>
+                        }
+                        else
+                        {
+                            <a asp-controller="Home" asp-action="Favorites" class="ffg-chip position-relative">
+                                <i class="fa-solid fa-heart"></i> Favorites
+                                <span id="favorite-badge" class="badge rounded-pill">@layoutFavoriteCount</span>
+                            </a>
+
+                            <a asp-controller="Home" asp-action="Cart" class="ffg-chip position-relative">
+                                <i class="fa-solid fa-basket-shopping"></i> Cart
+                                <span id="cart-badge" class="badge rounded-pill">@layoutCartCount</span>
+                            </a>
+                        }
+
+                        <ul class="navbar-nav">
+                            @if (User.Identity?.IsAuthenticated == true)
+                            {
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle ffg-chip border-0 bg-transparent" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fa-regular fa-user"></i> @User.Identity.Name
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end ffg-user-dropdown">
+                                        <li>
+                                            <a class="dropdown-item" asp-controller="Account" asp-action="Profile">
+                                                <i class="fa-regular fa-id-card me-2"></i>Profile
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" asp-controller="Order" asp-action="History">
+                                                <i class="fa-solid fa-receipt me-2"></i>My Orders
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <button class="dropdown-item text-danger w-100 text-start bg-transparent border-0" id="ajax-logout-btn">
+                                                <i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Logout
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </li>
+                            }
+                            else
+                            {
+                                <li class="nav-item">
+                                    <a class="btn btn-outline-ffg btn-sm px-3" asp-controller="Account" asp-action="Login">
+                                        <i class="fa-regular fa-user me-1"></i>Sign In
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+
+                        <!-- Dark mode toggle -->
+                        <button type="button" id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle dark mode">
+                            <i class="fa-solid fa-moon" id="theme-toggle-icon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container-fluid px-4 ffg-main">
+        <main role="main" class="pb-5">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="ffg-footer">
+        <div class="container-fluid px-4">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <a class="ffg-brand mb-3" asp-controller="Home" asp-action="Index">
+                        <span class="ffg-brand-mark">FFG</span>
+                        <span class="ffg-brand-text">
+                            <span class="brand-name">FFG Restaurant</span>
+                            <span class="brand-sub">Emerald Kitchen</span>
+                        </span>
+                    </a>
+                    <p class="mt-3 mb-0" style="max-width: 340px;">
+                        A modern bistro serving seasonal plates, slow-cooked classics and handcrafted
+                        drinks — dine in, take away, or reserve a table in seconds.
+                    </p>
+                </div>
+
+                <div class="col-6 col-lg-2">
+                    <h6>Explore</h6>
+                    <ul>
+                        <li><a asp-controller="Home" asp-action="Index">Home</a></li>
+                        <li><a asp-controller="Home" asp-action="Menu">Our Menu</a></li>
+                        <li><a asp-controller="Home" asp-action="Tables">Live Tables</a></li>
+                        <li><a asp-controller="Order" asp-action="History">My Orders</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-6 col-lg-3">
+                    <h6>Opening Hours</h6>
+                    <ul>
+                        <li>Monday – Thursday <span class="text-white-50">· 11am – 10pm</span></li>
+                        <li>Friday – Saturday <span class="text-white-50">· 11am – 11pm</span></li>
+                        <li>Sunday <span class="text-white-50">· 12pm – 9pm</span></li>
+                        <li class="pt-1"><a asp-controller="Home" asp-action="Tables"><i class="fa-solid fa-circle-check me-1"></i>Check table availability</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-3">
+                    <h6>Visit Us</h6>
+                    <ul class="ffg-footer-contact">
+                        <li>
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span>18 Emerald Walk,<br />Kuala Lumpur 50450, Malaysia</span>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-phone"></i>
+                            <a href="tel:+60312345678">+60 3-1234 5678</a>
+                        </li>
+                        <li>
+                            <i class="fa-regular fa-envelope"></i>
+                            <a href="mailto:hello@ffgrestaurant.com">hello@ffgrestaurant.com</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="ffg-footer-bottom d-flex flex-wrap justify-content-between gap-2">
+                <span>&copy; @DateTime.Now.Year FFG Restaurant. All rights reserved.</span>
+                <span>AMIT2014 Assignment Team · Crafted with care</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            $("#ajax-logout-btn").click(function (e) {
+                e.preventDefault();
+                if (confirm("Are you sure you want to logout?")) {
+                    $.ajax({
+                        url: '@Url.Action("Logout", "Account")',
+                        type: 'POST',
+                        success: function (response) {
+                            window.location.href = '@Url.Action("Index", "Home")';
+                        },
+                        error: function () {
+                            alert("Logout failed. Please try again.");
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+
+    <!-- Dark mode toggle logic -->
+    <script>
+        (function () {
+            var htmlEl = document.documentElement;
+            var toggleBtn = document.getElementById("theme-toggle-btn");
+            var toggleIcon = document.getElementById("theme-toggle-icon");
+
+            if (!toggleBtn || !toggleIcon) return;
+
+            function updateIcon() {
+                var isDark = htmlEl.classList.contains("dark-mode");
+                toggleIcon.classList.toggle("fa-moon", !isDark);
+                toggleIcon.classList.toggle("fa-sun", isDark);
+                toggleBtn.title = isDark ? "Switch to light mode" : "Switch to dark mode";
+            }
+
+            updateIcon();
+
+            toggleBtn.addEventListener("click", function () {
+                htmlEl.classList.toggle("dark-mode");
+                var isDark = htmlEl.classList.contains("dark-mode");
+                localStorage.setItem("ffg-theme", isDark ? "dark" : "light");
+                updateIcon();
+            });
+        })();
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

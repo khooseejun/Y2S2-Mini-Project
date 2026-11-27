@@ -1,0 +1,259 @@
+﻿/* ==========================================================
+   FFG RESTAURANT — DARK THEME
+   Overrides the design tokens defined in site.css whenever
+   html.dark-mode is present, then patches the few components
+   that need explicit treatment.
+   ========================================================== */
+
+html.dark-mode {
+    --ffg-cream: #0b1411;
+    --ffg-cream-alt: #101d18;
+    --ffg-surface: #12201b;
+    --ffg-ink: #e9efe9;
+    --ffg-muted: #9db0a7;
+    --ffg-line: #263a32;
+    --ffg-emerald-900: #e9efe9;
+    --ffg-emerald-800: #cfe4d8;
+    --ffg-emerald-700: #9ec9b4;
+    --ffg-emerald-100: #163027;
+    --ffg-gold-700: #e0c368;
+    --ffg-gold-100: #2a2413;
+    --ffg-shadow-sm: 0 14px 30px -22px rgba(0, 0, 0, 0.9);
+    --ffg-shadow: 0 24px 50px -30px rgba(0, 0, 0, 0.95);
+    --bs-body-bg: #0b1411;
+    --bs-body-color: #e9efe9;
+}
+
+html.dark-mode body {
+    background-color: var(--ffg-cream) !important;
+    background-image:
+        radial-gradient(1100px 520px at 100% -10%, rgba(201, 162, 39, 0.1), transparent 60%),
+        radial-gradient(900px 480px at -10% 10%, rgba(29, 107, 80, 0.18), transparent 55%);
+    color: var(--ffg-ink) !important;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Header + nav */
+html.dark-mode .ffg-header {
+    background: rgba(11, 20, 17, 0.92);
+    border-bottom-color: var(--ffg-line);
+}
+
+html.dark-mode .ffg-announce {
+    background: #050f0c;
+}
+
+html.dark-mode .ffg-brand-text .brand-name {
+    color: #f3f6f2;
+}
+
+html.dark-mode .ffg-nav .nav-link {
+    color: var(--ffg-ink);
+}
+
+html.dark-mode .ffg-nav .nav-link:hover,
+html.dark-mode .ffg-nav .nav-link.active {
+    color: var(--ffg-gold-400);
+    background: rgba(201, 162, 39, 0.1);
+}
+
+html.dark-mode .ffg-chip {
+    background: var(--ffg-surface);
+    border-color: var(--ffg-line);
+    color: var(--ffg-ink);
+}
+
+html.dark-mode .ffg-chip:hover {
+    border-color: var(--ffg-gold-500);
+    color: var(--ffg-gold-400);
+    background: var(--ffg-cream-alt);
+}
+
+html.dark-mode .theme-toggle-btn {
+    color: var(--ffg-gold-400);
+    border-color: var(--ffg-line);
+}
+
+html.dark-mode .theme-toggle-btn:hover {
+    background-color: var(--ffg-cream-alt);
+}
+
+/* Cards, tables, forms */
+html.dark-mode .card,
+html.dark-mode .admin-table-card {
+    background-color: var(--ffg-surface) !important;
+    border-color: var(--ffg-line) !important;
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .card-header {
+    background-color: transparent !important;
+    border-color: var(--ffg-line) !important;
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .text-dark,
+html.dark-mode .text-secondary {
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .text-muted {
+    color: var(--ffg-muted) !important;
+}
+
+html.dark-mode .table {
+    --bs-table-color: var(--ffg-ink);
+    color: var(--ffg-ink);
+    border-color: var(--ffg-line);
+}
+
+html.dark-mode .table > :not(caption) > * > * {
+    background-color: transparent !important;
+    color: var(--ffg-ink) !important;
+    border-color: var(--ffg-line) !important;
+}
+
+html.dark-mode .table-light,
+html.dark-mode .table-light > * {
+    --bs-table-bg: var(--ffg-cream-alt) !important;
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .table-hover > tbody > tr:hover > * {
+    background-color: rgba(201, 162, 39, 0.08) !important;
+}
+
+html.dark-mode .form-control,
+html.dark-mode .form-select {
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-ink) !important;
+    border-color: var(--ffg-line) !important;
+}
+
+html.dark-mode .form-control::placeholder {
+    color: var(--ffg-muted) !important;
+}
+
+html.dark-mode .form-control:focus,
+html.dark-mode .form-select:focus {
+    border-color: var(--ffg-gold-500) !important;
+    box-shadow: 0 0 0 0.22rem rgba(201, 162, 39, 0.25) !important;
+}
+
+html.dark-mode .input-group-text {
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-ink) !important;
+    border-color: var(--ffg-line) !important;
+}
+
+/* Dropdowns */
+html.dark-mode .dropdown-menu {
+    background-color: var(--ffg-surface) !important;
+    border-color: var(--ffg-line) !important;
+}
+
+html.dark-mode .dropdown-item {
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .dropdown-item:hover,
+html.dark-mode .dropdown-item:focus {
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-gold-400) !important;
+}
+
+html.dark-mode .dropdown-divider {
+    border-color: var(--ffg-line) !important;
+}
+
+/* Alerts */
+html.dark-mode .alert-success {
+    background-color: rgba(31, 122, 85, 0.2) !important;
+    color: #7fd6ac !important;
+    border-color: rgba(31, 122, 85, 0.4) !important;
+}
+
+html.dark-mode .alert-danger {
+    background-color: rgba(166, 61, 61, 0.22) !important;
+    color: #f0a8a8 !important;
+    border-color: rgba(166, 61, 61, 0.45) !important;
+}
+
+html.dark-mode .alert-info {
+    background-color: rgba(41, 98, 128, 0.22) !important;
+    color: #a7d3e6 !important;
+    border-color: rgba(41, 98, 128, 0.45) !important;
+}
+
+html.dark-mode .alert-warning {
+    background-color: rgba(201, 162, 39, 0.16) !important;
+    color: #e8d28d !important;
+    border-color: rgba(201, 162, 39, 0.4) !important;
+}
+
+/* Buttons that assume a light background */
+html.dark-mode .btn-outline-secondary {
+    --bs-btn-color: var(--ffg-ink);
+    --bs-btn-border-color: var(--ffg-line);
+    --bs-btn-hover-bg: var(--ffg-cream-alt);
+    --bs-btn-hover-border-color: var(--ffg-gold-500);
+    --bs-btn-hover-color: var(--ffg-gold-400);
+}
+
+html.dark-mode .btn-light {
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-ink) !important;
+    border-color: var(--ffg-line) !important;
+}
+
+html.dark-mode hr {
+    border-color: var(--ffg-line) !important;
+    opacity: 1;
+}
+
+html.dark-mode .bg-light {
+    background-color: var(--ffg-cream-alt) !important;
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .bg-white {
+    background-color: var(--ffg-surface) !important;
+}
+
+/* Menu category pills */
+html.dark-mode .nav-pills .nav-link {
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .nav-pills .nav-link:not(.active):hover {
+    background-color: var(--ffg-cream-alt) !important;
+}
+
+html.dark-mode .nav-pills .nav-link.active {
+    background-color: var(--ffg-emerald-600) !important;
+    color: #ffffff !important;
+}
+
+/* Table status cards: keep available / occupied visually distinct */
+html.dark-mode .table-card.status-available {
+    background-color: rgba(31, 122, 85, 0.18) !important;
+    border-color: rgba(31, 122, 85, 0.5) !important;
+    color: var(--ffg-ink) !important;
+}
+
+html.dark-mode .table-card.status-occupied {
+    background-color: rgba(166, 61, 61, 0.2) !important;
+    border-color: rgba(166, 61, 61, 0.5) !important;
+    color: var(--ffg-ink) !important;
+}
+
+/* Footer */
+html.dark-mode .ffg-footer {
+    background: #050f0c;
+}
+
+/* Bootstrap close button visibility */
+html.dark-mode .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
