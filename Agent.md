@@ -184,6 +184,12 @@ These are deliberate, assignment-driven decisions. Comments in the source explai
 - **Manual cookie authentication.** `Helper.SignIn` builds `ClaimTypes.Name` (username) +
   `ClaimTypes.Role` (`ADMIN`/`MEMBER`). There is no Identity user store. Roles are matched with
   `[Authorize(Roles = "ADMIN")]` and `User.IsInRole("ADMIN")`.
+- **Login is split into Member and Admin portals.** `/Account/Login` has a two-button switch
+  (`?type=MEMBER` — the default — or `?type=ADMIN`); the choice posts back as `LoginVM.LoginAs`. The
+  controller **enforces** it via `MatchesLoginType`: an ADMIN account cannot sign in through the Member tab
+  and vice versa, and the mismatch is rejected with an error rather than redirected. `LoginAs` is optional,
+  so any form that omits it falls back to MEMBER. Routes for both remain `/Account/Login` — the toggle is
+  what separates them, not a second controller.
 - **Passwords are hashed via `Helper.HashPassword` / `VerifyPassword`** (`PasswordHasher<object>`,
   "Slide 11" pattern). Never compare plaintext. Never store unhashed passwords.
 - **Data annotations on entities, not Fluent API.** `Models/DB.cs` uses `[Required]`, `[StringLength]`,
@@ -224,7 +230,7 @@ These are deliberate, assignment-driven decisions. Comments in the source explai
 | `Order` | `UserId`, `TableId?`, `OrderDate`, `OrderStatus`, `DiningOption` (`DineIn`/`Takeaway`/`Delivery`), `PaymentMethod`, `DeliveryAddress`, **price breakdown** (`SubtotalAmount`, `ServiceCharge`, `TaxAmount`, `DeliveryFee`, `DiscountAmount`; `TotalAmount` = grand total), `StatusUpdatedDate`, `CancellationReason` |
 | `OrderDetail` | `OrderId`, `ProductId`, `Quantity`, `PriceAtOrder` (snapshot), `SpecialInstructions`, `Addons` |
 | `OrderItemAddon` | `OrderDetailId`, `Name`, `PriceAtOrder` — add-on **snapshot** so later edits never rewrite history |
-| `Payment` | `OrderId`, `Method`, `Amount`, `Status` (`PAID`/`UNPAID`/`REFUNDED`), `Reference`, dates |
+| `Payment` | `OrderId`, `Method` (`Cash`/`EWallet`/`Card`), `Amount`, `Status` (`PAID`/`UNPAID`/`REFUNDED`), `Reference`, dates. Cash starts UNPAID and settles on completion; EWallet/Card are paid immediately; cancelling a paid order flips it to REFUNDED |
 | `Reservation` | `UserId?`, `CustomerName`, `Phone`, `Email?`, `ReservationDate`, `ReservationTime`, `Guests`, `TableId?`, `Status`, `SpecialRequests`; `StartsAt`/`EndsAt` (`DurationMinutes` = 120) |
 | `Favorite` | `UserId`, `ProductId`, `AddedDate` — no unique constraint |
 
@@ -260,6 +266,32 @@ All status strings live in one file. **Do not write status literals in controlle
 - **Saved address vs. order address:** `User.Address` is reusable; `Order.DeliveryAddress` is a per-order
   snapshot so editing the profile later does not rewrite order history. Keep both.
 - **Reservation conflicts** (Workflow.md §8.4): one table cannot hold two overlapping active bookings.
+
+### Current database contents (snapshot)
+
+The database evolves as the app is used and tested, so treat `database.md` as the authoritative,
+row-by-row reference and this table as a quick sanity check. Verified 2026-11-27:
+
+| Table | Rows |
+| --- | ---: |
+| `Users` | 4 (1 ADMIN, 3 MEMBER) |
+| `Categories` | 5 |
+| `Products` | 45 (44 active) |
+| `ProductAddons` | 4 |
+| `Tables` | 10 |
+| `Orders` | 7 (4 COMPLETED, 3 CANCELLED) |
+| `OrderDetails` | 9 |
+| `OrderItemAddons` | 0 |
+| `Payments` | 7 (4 PAID, 1 UNPAID, 2 REFUNDED) |
+| `Reservations` | 0 |
+| `Favorites` | 1 |
+| `__EFMigrationsHistory` | 5 |
+| **Total** | **97** |
+
+Orders 20–24 were placed through the UI (one per order type) and prove the pricing rules end-to-end;
+they also left the first `Card` payment and the first `REFUNDED`/`UNPAID` payment states in the data.
+See `database.md` for the per-row breakdown.
+
 ## 8. Code style conventions
 
 Observed consistently across the codebase — follow them so new code looks native.
@@ -376,10 +408,14 @@ Recorded so agents neither re-introduce nor "silently fix" these mismatched to t
   reports "We couldn't send the email right now." **A Gmail app password was previously committed in this
   file and should be considered exposed — the owner should rotate/revoke it.** Do not add new secrets to
   `appsettings.json`.
-- **CSRF coverage is partial.** `ValidateAntiForgeryToken` appears on all 5 POSTs in `OrderController` and
-  6 of 13 in `AdminController`, but **0 of 8 in `AccountController`** and **0 of 9 in `HomeController`**.
-  Notable gaps: `Account/Login`, `Account/Register`, `Account/Logout` (the `_Layout` logout posts via AJAX
-  with no token), and all cart/favorite AJAX POSTs.
+- **CSRF coverage is partial.** `ValidateAntiForgeryToken` appears on all 5 POSTs in `OrderController`,
+  all 3 in `ReservationController`, and 6 of 20 in `AdminController`, but **0 of 8 in `AccountController`**
+  and **0 of 9 in `HomeController`**. Notable gaps: `Account/Login`, `Account/Register`, `Account/Logout`
+  (the `_Layout` logout posts via AJAX with no token), and all cart/favorite AJAX POSTs. The 14 uncovered
+  `AdminController` POSTs are the status/table/reservation/payment mutations added in Phase 2 —
+  `UpdateOrderStatus`, `UpdateOrderStatusBatch`, `DeleteProductsBatch`, `ToggleBlock`, `DeleteUser`,
+  `UserCreate`, `UserEdit`, `UpdateReservationStatus`, `AssignReservationTable`, `UpdateTableStatus`,
+  `CreateTable`, `EditTable`, `DeleteTable`, `MarkPaymentPaid`.
 - **`Helper.SignIn`/`SignOut` fire-and-forget `SignInAsync`/`SignOutAsync`** without `await`. Works in
   practice for most flows, but is a latent race — the cookie write may not finish before the redirect.
 - **Open redirect is mitigated**: `Account/Login` validates `returnURL` via `LocalRedirect(returnURL)`
@@ -573,7 +609,7 @@ Both files are required — the `.ldf` is the transaction log, and an `.mdf` wit
 | --- | --- |
 | Project file | `RestaurantSystem\RestaurantSystem.csproj` (`net10.0`) |
 | Launch URLs | https://localhost:7089 · http://localhost:5007 |
-| Login path | `/Account/Login` · Access denied: `/Account/AccessDenied` |
+| Login path | `/Account/Login` (`?type=MEMBER` ・ `?type=ADMIN`) · Access denied: `/Account/AccessDenied` |
 | Admin entry | `/Admin/Dashboard` |
 | Admin pages | `Orders`, `Kitchen`, `Reservations`, `Tables`, `Payments`, `Categories`, `Products`, `UserManage` |
 | Admin reports | `/Admin/Report`, `/Admin/Report/Daily`, `/Admin/Report/Monthly`, `/Admin/Report/TopSelling` (+ `/Export`) |
@@ -585,7 +621,7 @@ Both files are required — the `.ldf` is the transaction log, and an `.mdf` wit
 | Table states | `Available`, `Reserved`, `Occupied`, `Cleaning`, `Unavailable` |
 | Reservation states | `PENDING`, `CONFIRMED`, `CANCELLED`, `REJECTED`, `COMPLETED` |
 | Payment statuses | `PAID`, `UNPAID`, `REFUNDED` |
-| Payment methods | `Cash`, `EWallet` |
+| Payment methods | `Cash`, `EWallet`, `Card` (Card is offered by the UI but missing from `PaymentMethod.All`) |
 | Pricing config | `appsettings.json → RestaurantSettings` (tax 6%, service 10% dine-in, delivery RM 5) |
 | Roles | `ADMIN`, `MEMBER` |
 | Theme storage key | `ffg-theme` (legacy: `bite-theme`), class `html.dark-mode` |

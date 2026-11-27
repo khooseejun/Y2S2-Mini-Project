@@ -18,7 +18,7 @@ Everything below was read directly from the live database (not from the code) on
 | Collation | `SQL_Latin1_General_CP1_CI_AS` (case-insensitive) |
 | Recovery model | SIMPLE |
 | Tables | **12** (11 domain + `__EFMigrationsHistory`) |
-| Total rows | 80 |
+| Total rows | 97 |
 
 Connection string (`appsettings.json`):
 
@@ -35,17 +35,17 @@ Server=(localdb)\mssqllocaldb;AttachDbFilename=|DataDirectory|\DB.mdf;Database=R
 
 | Table | Rows | Purpose |
 | --- | ---: | --- |
-| `Users` | 3 | Customer + administrator accounts |
+| `Users` | 4 | Customer + administrator accounts |
 | `Categories` | 5 | Menu sections |
 | `Products` | 45 | Menu items (44 active) |
 | `ProductAddons` | 4 | Customisation options per dish |
 | `Tables` | 10 | Physical restaurant tables |
-| `Orders` | 2 | Placed orders (header + totals) |
-| `OrderDetails` | 4 | Order line items |
+| `Orders` | 7 | Placed orders (header + totals) |
+| `OrderDetails` | 9 | Order line items |
 | `OrderItemAddons` | 0 | Add-on snapshots per order line |
-| `Payments` | 2 | Payment transactions |
+| `Payments` | 7 | Payment transactions |
 | `Reservations` | 0 | Table bookings |
-| `Favorites` | 0 | Saved dishes per user |
+| `Favorites` | 1 | Saved dishes per user |
 | `__EFMigrationsHistory` | 5 | Applied EF Core migrations |
 
 ---
@@ -99,13 +99,15 @@ Cardinality notes: `||` = exactly one, `}o` = zero or more, `|o` = zero or one. 
 
 **Current data**
 
-| UserId | Username | Role | Blocked | Foto | Address |
+| UserId | Username | Role | Blocked | Photo | Address |
 | ---: | --- | --- | --- | --- | --- |
 | 13 | `admin01` | ADMIN | no | `/images/avatars/user_13.jpg` | — |
 | 14 | `user01` | MEMBER | no | — | — |
 | 16 | `theuser` | MEMBER | no | — | `No 67, Island Jefry Epstein` |
+| 20 | `Khoo` | MEMBER | no | `/images/avatars/user_20.jpg` | `No 67, Jalan ASDF` |
 
-> `UserId` 15 and 17 do not exist — they were consumed by test accounts that were later deleted.
+> `UserId` 15, 17 and 18–19 do not exist — they were consumed by test accounts that were later deleted.
+> The next account created will be `UserId` 21.
 
 ### 4.2 `Categories` — menu sections (5 rows)
 
@@ -183,7 +185,7 @@ All 10 tables are `Table 1`…`Table 10`, capacity 4, location `NULL`, status **
 > `IsOccupied` is legacy. `Table.SetStatus(...)` in the code is the only writer and keeps both fields
 > consistent — a query direct against `IsOccupied` alone can drift.
 
-### 4.6 `Orders` — order headers (2 rows)
+### 4.6 `Orders` — order headers (7 rows)
 
 | Column | Type | Null | Key / Default | Notes |
 | --- | --- | --- | --- | --- |
@@ -206,15 +208,25 @@ All 10 tables are `Table 1`…`Table 10`, capacity 4, location `NULL`, status **
 
 **Current data**
 
-| OrderId | User | Table | Date | Subtotal | Tax | Total | Status | Type | Payment |
-| ---: | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |
-| 14 | theuser | Table 1 | 2026-09-10 02:32 | 17.80 | 0.00 | **17.80** | `COMPLETED` | DineIn | Cash |
-| 15 | theuser | — | 2026-09-10 02:32 | 13.50 | 0.00 | **13.50** | `COMPLETED` | Takeaway | EWallet |
+| OrderId | User | Table | Date | Subtotal | Service | Tax | Delivery | Total | Status | Type | Payment |
+| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| 14 | theuser | Table 1 | 2026-09-10 02:32 | 17.80 | 0.00 | 0.00 | 0.00 | **17.80** | `COMPLETED` | DineIn | Cash |
+| 15 | theuser | — | 2026-09-10 02:32 | 13.50 | 0.00 | 0.00 | 0.00 | **13.50** | `COMPLETED` | Takeaway | EWallet |
+| 20 | Khoo | Table 1 | 2026-11-27 22:16 | 11.90 | 1.19 | 0.79 | 0.00 | **13.88** | `CANCELLED` | DineIn | Cash |
+| 21 | Khoo | — | 2026-11-27 22:16 | 6.90 | 0.00 | 0.41 | 0.00 | **7.31** | `CANCELLED` | Takeaway | Card |
+| 22 | Khoo | — | 2026-11-27 22:17 | 3.00 | 0.00 | 0.18 | 5.00 | **8.18** | `CANCELLED` | Delivery | EWallet |
+| 23 | Khoo | Table 1 | 2026-11-27 22:25 | 11.90 | 1.19 | 0.79 | 0.00 | **13.88** | `COMPLETED` | DineIn | Cash |
+| 24 | Khoo | Table 2 | 2026-11-27 22:28 | 11.90 | 1.19 | 0.79 | 0.00 | **13.88** | `COMPLETED` | DineIn | Cash |
 
-> Both were seeded by the `Phase2Core` migration backfill, which set `SubtotalAmount = TotalAmount` and
-> left tax/service at `0`. Orders created through the UI now always carry the full breakdown.
+> Orders **14** and **15** were seeded by the `Phase2Core` migration backfill, which set
+> `SubtotalAmount = TotalAmount` and left tax/service at `0`.
+>
+> Orders **20–24** were placed through the UI and show the real breakdown. They confirm the pricing
+> rules: order 20 is dine-in, so it carries a 10 % service charge (11.90 × 10 % = 1.19) with 6 % tax on
+> subtotal + service (13.09 × 6 % = 0.79) = **13.88**. Order 22 is delivery, so it has no service charge
+> but adds the RM 5.00 delivery fee.
 
-### 4.7 `OrderDetails` — order lines (4 rows)
+### 4.7 `OrderDetails` — order lines (9 rows)
 
 | Column | Type | Null | Key / Default |
 | --- | --- | --- | --- |
@@ -231,6 +243,14 @@ All 10 tables are `Table 1`…`Table 10`, capacity 4, location `NULL`, status **
 | 22 | 14 | Crispy French Fries | 1 | 4.90 |
 | 23 | 15 | Chocolate Lava Cake | 1 | 7.50 |
 | 24 | 15 | Fresh Orange Juice | 1 | 6.00 |
+| 29 | 20 | Aglio Olio Spaghetti | 1 | 11.90 |
+| 30 | 21 | BBQ Chicken Wings | 1 | 6.90 |
+| 31 | 22 | Iced Lemon Tea | 1 | 3.00 |
+| 32 | 23 | Aglio Olio Spaghetti | 1 | 11.90 |
+| 33 | 24 | Aglio Olio Spaghetti | 1 | 11.90 |
+
+> Detail ids 25–28 are missing — they belonged to orders that were deleted during testing.
+> No line currently carries `SpecialInstructions`.
 
 ### 4.8 `OrderItemAddons` — add-on snapshots (0 rows)
 
@@ -241,15 +261,15 @@ All 10 tables are `Table 1`…`Table 10`, capacity 4, location `NULL`, status **
 | `Name` | nvarchar(100) | NO | |
 | `PriceAtOrder` | decimal(18,2) | NO | Snapshot — later edits to `ProductAddons` never rewrite history |
 
-Empty: the two existing orders predate the add-on feature.
+Empty: no order placed so far has used an add-on.
 
-### 4.9 `Payments` — transactions (2 rows)
+### 4.9 `Payments` — transactions (7 rows)
 
 | Column | Type | Null | Key / Default |
 | --- | --- | --- | --- |
 | `PaymentId` | int | NO | **PK**, identity |
 | `OrderId` | int | NO | **FK → Orders** |
-| `Method` | nvarchar(30) | YES | `Cash` / `EWallet` |
+| `Method` | nvarchar(30) | YES | `Cash` / `EWallet` / `Card` |
 | `Amount` | decimal(18,2) | NO | |
 | `Status` | nvarchar(20) | NO | `PAID` / `UNPAID` / `REFUNDED` |
 | `Reference` | nvarchar(50) | YES | |
@@ -260,6 +280,26 @@ Empty: the two existing orders predate the add-on feature.
 | ---: | ---: | --- | ---: | --- | --- |
 | 1 | 14 | Cash | 17.80 | PAID | `LEGACY-14` |
 | 2 | 15 | EWallet | 13.50 | PAID | `LEGACY-15` |
+| 7 | 20 | Cash | 13.88 | UNPAID | `ORD-20-20261127221602` |
+| 8 | 21 | Card | 7.31 | REFUNDED | `ORD-21-20261127221631` |
+| 9 | 22 | EWallet | 8.18 | REFUNDED | `ORD-22-20261127221755` |
+| 10 | 23 | Cash | 13.88 | PAID | `ORD-23-20261127222558` |
+| 11 | 24 | Cash | 13.88 | PAID | `ORD-24-20261127222817` |
+
+> Rows 1–2 (`LEGACY-*`) were created by the migration backfill. Rows 7–11 were created by the app and
+> show the real settlement lifecycle:
+> - **Cash** starts `UNPAID` and becomes `PAID` when the order is completed (payment 7 is still unpaid
+>   because its order was never completed).
+> - **EWallet / Card** are `PAID` immediately.
+> - A **cancelled** order that was already paid flips to `REFUNDED` (payments 8 and 9).
+>
+> `PaymentId` 3–6 are missing — they belonged to orders that were deleted during testing.
+
+> ⚠️ **`Card` exists in the data and in the payment form, but not in `Models/Statuses.cs`.**
+> `Payment.cshtml` offers three options (Cash, Card, EWallet), and `CreateOrder` treats anything that is
+> not `Cash` as paid immediately — so `Card` behaves correctly. However the `PaymentMethod` constants
+> class still lists only `{ Cash, EWallet }`. Adding `Card` there would keep the code honest; nothing is
+> currently broken because no validation consults that array.
 
 ### 4.10 `Reservations` — table bookings (0 rows)
 
@@ -281,7 +321,7 @@ Empty: the two existing orders predate the add-on feature.
 Empty. A booking occupies its table for **120 minutes** (`Reservation.DurationMinutes`), and overlap is
 prevented in code — there is **no DB-level exclusion constraint**.
 
-### 4.11 `Favorites` — saved dishes (0 rows)
+### 4.11 `Favorites` — saved dishes (1 row)
 
 | Column | Type | Null | Key / Default |
 | --- | --- | --- | --- |
@@ -289,6 +329,10 @@ prevented in code — there is **no DB-level exclusion constraint**.
 | `UserId` | int | NO | **FK → Users** (CASCADE) |
 | `ProductId` | int | NO | **FK → Products** (CASCADE) |
 | `AddedDate` | datetime2 | NO | `getdate()` |
+
+| FavoriteId | User | Dish | Added |
+| ---: | --- | --- | --- |
+| 14 | Khoo | Aglio Olio Spaghetti | 2026-11-27 22:15 |
 
 Protected by **unique index** `UQ_Favorites_User_Product (UserId, ProductId)` — a user cannot favourite
 the same dish twice.
@@ -363,13 +407,16 @@ application only (`Models/Statuses.cs`).
 
 | Column | Allowed values | Used today |
 | --- | --- | --- |
-| `Users.Role` | `ADMIN`, `MEMBER` | ADMIN ×1, MEMBER ×2 |
-| `Orders.OrderStatus` | `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `COMPLETED`, `CANCELLED` | COMPLETED ×2 |
-| `Orders.DiningOption` | `DineIn`, `Takeaway`, `Delivery` | DineIn ×1, Takeaway ×1 |
-| `Orders.PaymentMethod` / `Payments.Method` | `Cash`, `EWallet` | 1 each |
-| `Payments.Status` | `PAID`, `UNPAID`, `REFUNDED` | PAID ×2 |
+| `Users.Role` | `ADMIN`, `MEMBER` | ADMIN ×1, MEMBER ×3 |
+| `Orders.OrderStatus` | `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `COMPLETED`, `CANCELLED` | COMPLETED ×4, CANCELLED ×3 |
+| `Orders.DiningOption` | `DineIn`, `Takeaway`, `Delivery` | DineIn ×4, Takeaway ×2, Delivery ×1 |
+| `Orders.PaymentMethod` / `Payments.Method` | `Cash`, `EWallet`, **`Card`** | Cash ×4, EWallet ×2, Card ×1 |
+| `Payments.Status` | `PAID`, `UNPAID`, `REFUNDED` | PAID ×4, UNPAID ×1, REFUNDED ×2 |
 | `Tables.Status` | `Available`, `Reserved`, `Occupied`, `Cleaning`, `Unavailable` | Available ×10 |
 | `Reservations.Status` | `PENDING`, `CONFIRMED`, `CANCELLED`, `REJECTED`, `COMPLETED` | — |
+
+> `Card` is accepted by the payment form and stored in the data, but is **not** listed in
+> `PaymentMethod.All` in `Models/Statuses.cs` (see §4.9).
 
 Legal order transitions (`OrderStatus.CanTransition`):
 
@@ -409,8 +456,9 @@ PENDING / CONFIRMED / PREPARING → CANCELLED
 | `Tables.IsOccupied` out of sync with `Status` | 0 |
 | `Payment.Amount` ≠ order total | 0 |
 | Orders with an invalid status value | 0 |
+| Reservations referencing a missing table | 0 |
 
-Image references: **46 URLs, 0 dangling** — every `Products.ImageUrl` and `Users.ProfilePhotoUrl`
+Image references: **47 URLs, 0 dangling** — every `Products.ImageUrl` and `Users.ProfilePhotoUrl`
 resolves to a real file under `wwwroot`.
 
 Unreferenced files under `wwwroot/images` (harmless leftovers):
@@ -439,11 +487,13 @@ Unreferenced files under `wwwroot/images` (harmless leftovers):
    is empty at model-binding time.
 6. **Seeded order totals have zero tax/service.** Orders 14 and 15 came from a backfill that copied
    `TotalAmount` into `SubtotalAmount`; only orders placed through the UI carry a full breakdown.
-7. **Sparse identity values** — `UserId` skips 15/17 (consumed by deleted test accounts); `ProductId` runs
-   23–76 with a single gap at `36 → 46`; `OrderId` resumes at 20. Nothing depends on contiguity, but don't
-   assume sequential IDs in fixtures.
+7. **Sparse identity values** — `UserId` runs 13–20 with gaps at 15, 17, 18 and 19; `ProductId` runs
+   23–76 with a single gap at `36 → 46`; `OrderId` runs 14, 15 then 20–24; `PaymentId` skips 3–6;
+   `OrderDetailId` skips 25–28. All gaps are from records deleted during testing. Nothing depends on
+   contiguity, but don't assume sequential IDs in fixtures.
 8. **`Products.ProductName` is not unique at DB level**, which is why the CSV import produced near-duplicates
    in the *source* data (the two colliding rows were skipped instead).
+9. **`Card` is accepted by the UI but missing from `PaymentMethod.All`** (§4.9, §7).
 
 ---
 
@@ -500,8 +550,8 @@ dotnet ef migrations add <Name> && dotnet ef database update
 | Database | `RestaurantSystemDB` |
 | Files | `DB.mdf`, `DB_log.ldf` (next to the `.csproj`) |
 | Tables | 12 |
-| Total rows | 80 |
-| Next IDs | Product 77 · Order 20 · OrderDetail 29 · Payment 7 · User 18 · Table 25 · Category 7 · Addon 5 · Favorite 14 · Reservation 4 |
+| Total rows | 97 |
+| Next IDs | Product 77 · Order 25 · OrderDetail 34 · Payment 12 · User 21 · Table 25 · Category 7 · Addon 5 · Favorite 15 · Reservation 4 |
 | Currency | RM, `decimal(18,2)` |
 | Menus | 5 categories, 45 dishes (44 active) |
 | Backups | `RestaurantSystem/App_Data/backup-20261127/` |
